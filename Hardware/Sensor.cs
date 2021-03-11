@@ -70,6 +70,9 @@ namespace OpenHardwareMonitor.Hardware {
 
       hardware.Closing += delegate(IHardware h) {
         SetSensorValuesToSettings();
+        if (control != null) {
+          control.NotifyClosing();
+        }
       };
     }
 
