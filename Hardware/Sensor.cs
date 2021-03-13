@@ -76,7 +76,7 @@ namespace OpenHardwareMonitor.Hardware {
       };
     }
 
-    private void SetSensorValuesToSettings() {
+    private void SetSensorValuesToSettings() {/*
       using (MemoryStream m = new MemoryStream()) {
         using (GZipStream c = new GZipStream(m, CompressionMode.Compress))
         using (BufferedStream b = new BufferedStream(c, 65536))
@@ -92,7 +92,8 @@ namespace OpenHardwareMonitor.Hardware {
         }
         settings.SetValue(new Identifier(Identifier, "values").ToString(),
           Convert.ToBase64String(m.ToArray()));
-      }
+      }*/
+      settings.SetValue(new Identifier(Identifier, "values").ToString(), "");
     }
 
     private void GetSensorValuesFromSettings() {

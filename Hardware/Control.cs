@@ -347,7 +347,9 @@ namespace OpenHardwareMonitor.Hardware {
     }
 
     private Timer timer;
-    private bool previousValueAssigend;
+    private float targetValue;
+    private float stableValue;
+    private int stableCount;
     private float previousSensorValue;
     private byte previousNoValue;
     internal float Value { get; private set; }
@@ -357,6 +359,10 @@ namespace OpenHardwareMonitor.Hardware {
       else if (timer.Enabled)
         return;
 
+      stableValue = -1000.0f;
+      stableCount = 0;
+      previousNoValue = 0;
+      previousSensorValue = -1000.0f;
       timer.Elapsed += Tick;
       timer.Interval = 1000;
       timer.Start();
@@ -364,18 +370,22 @@ namespace OpenHardwareMonitor.Hardware {
     private void Tick(object s, ElapsedEventArgs e) {
       if (Sensor != null && Sensor.Value.HasValue) {
         float sensorValue = Sensor.Value.Value;
-        if (!previousValueAssigend || sensorValue != previousSensorValue) {
+        if (stableValue == sensorValue && stableCount < 10) {
+          stableCount++;
+        } else {
+          stableValue = sensorValue;
+          stableCount = 0;
+        }
+        // Hysteresis of +/-1C to prevent fan speed fluctuating.
+        // A stable value of 10 consecutive samples within hystersis also forces an update.
+        if (previousSensorValue < sensorValue - 1 || previousSensorValue > sensorValue + 1 || (previousSensorValue != sensorValue && stableCount >= 10)) {
           previousSensorValue = sensorValue;
-
           // As of writing this, a Control is controlled with percentages. Round away decimals
-          float newValue = (float)Math.Round(Calculate(sensorValue));
-
-          if (Value == newValue && previousValueAssigend)
-            return;
-
-          Value = newValue;
-          previousValueAssigend = true;
-          SoftwareCurveValueChanged(this);
+          targetValue = (float)Math.Round(Calculate(sensorValue));
+          if (Value != targetValue) {
+            Value = targetValue;
+            SoftwareCurveValueChanged(this);
+          }
         }
       } else {
         previousNoValue++;
