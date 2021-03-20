@@ -61,6 +61,7 @@ namespace OpenHardwareMonitor.Hardware {
     float? Min { get; }
     float? Max { get; }
 
+    float? SmoothValue { get; }
     void ResetMin();
     void ResetMax();
 

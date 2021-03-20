@@ -26,6 +26,7 @@ namespace OpenHardwareMonitor.Hardware {
     private readonly SensorType sensorType;
     private readonly Hardware hardware;
     private readonly ReadOnlyArray<IParameter> parameters;
+    private float?[] previousValues = new float?[10];
     private float? currentValue;
     private float? minValue;
     private float? maxValue;
@@ -178,6 +179,40 @@ namespace OpenHardwareMonitor.Hardware {
       get { return parameters; }
     }
 
+    public float? SmoothValue {
+      get {
+        int count = (this.currentValue != null) ? 1 : 0;
+        float velocity = 0;
+        float? total = this.currentValue;
+
+        for (var i = 0; i < this.previousValues.Length; i ++) {
+          if (this.previousValues[i] == null) {
+            break;
+          }
+          float v = this.previousValues[i].Value;
+          if (total == null) {
+            total = v;
+            count = 1;
+          } else {
+            if (i == 0) {
+              velocity += (this.currentValue.Value - v);
+            } else {
+              velocity += (this.previousValues[i - 1].Value - v);
+            }
+            total += v;
+            count++;
+          }
+        }
+
+        // Average window depends on velocity. Faster change results in smaller average window so response is better.
+        if (count > 0) {
+          velocity /= count;
+        }
+        
+        return (Math.Abs(velocity) > 10) ? this.currentValue : ((count > 0) ? (total / count) : null);
+      }
+    }
+
     public float? Value {
       get { 
         return currentValue; 
@@ -197,12 +232,22 @@ namespace OpenHardwareMonitor.Hardware {
           }
         }
 
+        if (this.sensorType == SensorType.Fan) {
+          this.addPreviousValue(this.currentValue);
+        }
         this.currentValue = value;
         if (minValue > value || !minValue.HasValue)
           minValue = value;
         if (maxValue < value || !maxValue.HasValue)
           maxValue = value;
       }
+    }
+
+    private void addPreviousValue(float? value) {
+      for (int i = this.previousValues.Length - 1; i > 0; i--) {
+        this.previousValues[i] = this.previousValues[i - 1];
+      }
+      this.previousValues[0] = value;
     }
 
     public float? Min { get { return minValue; } }

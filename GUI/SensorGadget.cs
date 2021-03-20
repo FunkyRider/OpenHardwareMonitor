@@ -597,6 +597,10 @@ namespace OpenHardwareMonitor.GUI {
                       string.Format("{0:F1} MB/s", sensor.Value);
                   }
                   break;
+                case SensorType.Fan:
+                case SensorType.Flow:
+                  formatted = string.Format(format, sensor.SmoothValue);
+                  break;
                 default:
                   formatted = string.Format(format, sensor.Value);
                   break;
