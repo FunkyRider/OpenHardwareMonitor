@@ -31,7 +31,7 @@ namespace OpenHardwareMonitor.GUI
         private string controlTypename = "X";
         private string sensorTypename = "Y";
 
-        public SensorControlForm(ISensor control, ISensor sensor, List<ISoftwareCurvePoint> points)
+        public SensorControlForm(ISensor control, ISensor sensor, List<ISoftwareCurvePoint> points, IFanStopStartValues stopStart)
         {
             this.control = control;
             this.sensor = sensor;
@@ -125,7 +125,10 @@ namespace OpenHardwareMonitor.GUI
             textBox1.TextChanged += textBox1_TextChanged;
             textBox2.TextChanged += textBox2_TextChanged;
 
-            mPlot.MouseDown += MPlot_MouseDown;
+            textBox3.Text = Convert.ToString(stopStart != null ? stopStart.StopTemp : 0);
+            textBox4.Text = Convert.ToString(stopStart != null ? stopStart.StartTemp : 0);
+
+      mPlot.MouseDown += MPlot_MouseDown;
         }
         private void UpdateAxes()
         {
@@ -353,7 +356,15 @@ namespace OpenHardwareMonitor.GUI
                 return;
             }
 
-            control.Control.SetSoftwareCurve(softwareCurvePoints, sensor);
+            float stop = 0, start = 0;
+            float.TryParse(textBox3.Text, NumberStyles.Float, CultureInfo.InvariantCulture, out stop);
+            float.TryParse(textBox4.Text, NumberStyles.Float, CultureInfo.InvariantCulture, out start);
+
+            IFanStopStartValues stopStart = new FanStopStartValues{
+              StopTemp = stop,
+              StartTemp = start
+            };
+            control.Control.SetSoftwareCurve(softwareCurvePoints, sensor, stopStart);
             Close();
         }
 
@@ -367,5 +378,10 @@ namespace OpenHardwareMonitor.GUI
     {
         public float SensorValue { get; set; }
         public float ControlValue { get; set; }
+    }
+
+    internal class FanStopStartValues : IFanStopStartValues {
+      public float StopTemp { get; set; }
+      public float StartTemp { get; set; }
     }
 }

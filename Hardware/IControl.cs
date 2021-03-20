@@ -35,7 +35,7 @@ namespace OpenHardwareMonitor.Hardware {
     float MaxSoftwareValue { get; }
 
     void SetSoftware(float value);
-    void SetSoftwareCurve(List<ISoftwareCurvePoint> points, ISensor sensor);
+    void SetSoftwareCurve(List<ISoftwareCurvePoint> points, ISensor sensor, IFanStopStartValues stopStart);
     SoftwareCurve GetSoftwareCurve();
     void NotifyHardwareAdded(List<IGroup> allhardware);
     void NotifyHardwareRemoved(IHardware hardware);
@@ -46,5 +46,10 @@ namespace OpenHardwareMonitor.Hardware {
   public interface ISoftwareCurvePoint {
     float SensorValue { get; set; }
     float ControlValue { get; set; }
+  }
+
+  public interface IFanStopStartValues {
+    float StopTemp { get; set; }
+    float StartTemp { get; set; }
   }
 }

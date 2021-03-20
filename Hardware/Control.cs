@@ -141,12 +141,12 @@ namespace OpenHardwareMonitor.Hardware {
     internal event ControlEventHandler SoftwareControlValueChanged;
     string sensorIdentifier;
     bool nonSoftwareCurve;
-    public void SetSoftwareCurve(List<ISoftwareCurvePoint> points, ISensor sensor) {
+    public void SetSoftwareCurve(List<ISoftwareCurvePoint> points, ISensor sensor, IFanStopStartValues stopStart) {
       sensorIdentifier = null;
       nonSoftwareCurve = false;
 
       ControlMode = ControlMode.SoftwareCurve;
-      var softwareCurve = new SoftwareCurve(points, sensor);
+      var softwareCurve = new SoftwareCurve(points, sensor, stopStart);
       AttachSoftwareCurve(softwareCurve);
 
       this.settings.SetValue(new Identifier(identifier,
@@ -193,14 +193,18 @@ namespace OpenHardwareMonitor.Hardware {
         return;
 
       if (sensor.Identifier.ToString() == sensorIdentifier) {
+        var valueString = settings.GetValue(new Identifier(identifier, "curveValue").ToString(), "");
         List<ISoftwareCurvePoint> points;
-        if (!SoftwareCurve.TryParse(settings.GetValue(
-            new Identifier(identifier, "curveValue").ToString(), ""),
-            out points)) {
+        if (!SoftwareCurve.TryParse(valueString, out points)) {
           return;
         }
 
-        this.softwareCurve = new SoftwareCurve(points, sensor);
+        IFanStopStartValues stopStart;
+        if (!SoftwareCurve.TryParse(valueString, out stopStart)) {
+          return;
+        }
+
+        this.softwareCurve = new SoftwareCurve(points, sensor, stopStart);
         Debug.WriteLine("hardware added software curve created");
         if (mode == ControlMode.SoftwareCurve)
           AttachSoftwareCurve(softwareCurve);
@@ -283,6 +287,7 @@ namespace OpenHardwareMonitor.Hardware {
     internal event SoftwareCurveValueHandler SoftwareCurveAbort;
 
     public readonly List<ISoftwareCurvePoint> Points;
+    public readonly IFanStopStartValues StopStart;
     public readonly ISensor Sensor;
 
     internal static bool TryParse(string settings, out List<ISoftwareCurvePoint> points) {
@@ -291,10 +296,10 @@ namespace OpenHardwareMonitor.Hardware {
         return false;
 
       var splitPoints = settings.Split(';');
-      if (splitPoints.Length < 1)
+      if (splitPoints.Length < 2)
         return false;
 
-      for (var i = 0; i < splitPoints.Length - 1; i++) {
+      for (var i = 1; i < splitPoints.Length - 1; i++) {
         var splitPoint = splitPoints[i].Split(':');
         if (splitPoint.Length < 2)
           return false;
@@ -315,6 +320,30 @@ namespace OpenHardwareMonitor.Hardware {
 
       return true;
     }
+
+    internal static bool TryParse(string settings, out IFanStopStartValues stopStart) {
+      stopStart = new FanStopStartValues();
+      var splitPoints = settings.Split(';');
+      if (splitPoints.Length < 1)
+        return false;
+
+      var splitPoint = splitPoints[0].Split('!');
+      if (splitPoint.Length < 2)
+        return false;
+
+      float xpoint;
+      if (!float.TryParse(splitPoint[0], NumberStyles.Float, CultureInfo.InvariantCulture, out xpoint))
+        return false;
+
+      float ypoint;
+      if (!float.TryParse(splitPoint[1], NumberStyles.Float, CultureInfo.InvariantCulture, out ypoint))
+        return false;
+
+      stopStart.StopTemp = xpoint;
+      stopStart.StartTemp = ypoint;
+      return true;
+    }
+
     internal static bool TryParse(string settings, out string sensorIdentifier) {
       sensorIdentifier = null;
 
@@ -341,9 +370,10 @@ namespace OpenHardwareMonitor.Hardware {
       return null;
     }
 
-    internal SoftwareCurve(List<ISoftwareCurvePoint> points, ISensor sensor) {
+    internal SoftwareCurve(List<ISoftwareCurvePoint> points, ISensor sensor, IFanStopStartValues stopStart) {
       this.Points = points;
       this.Sensor = sensor;
+      this.StopStart = stopStart;
     }
 
     private Timer timer;
@@ -352,6 +382,8 @@ namespace OpenHardwareMonitor.Hardware {
     private int stableCount;
     private float previousSensorValue;
     private byte previousNoValue;
+    // fanStatus: 0 - Stopped, 1 - Running, -1 - Indeterminate
+    private int fanStatus;
     internal float Value { get; private set; }
     internal void Start() {
       if (timer == null)
@@ -359,6 +391,7 @@ namespace OpenHardwareMonitor.Hardware {
       else if (timer.Enabled)
         return;
 
+      fanStatus = -1;
       stableValue = -1000.0f;
       stableCount = 0;
       previousNoValue = 0;
@@ -380,9 +413,23 @@ namespace OpenHardwareMonitor.Hardware {
         // A stable value of 10 consecutive samples within hystersis also forces an update.
         if (previousSensorValue < sensorValue - 1 || previousSensorValue > sensorValue + 1 || (previousSensorValue != sensorValue && stableCount >= 10)) {
           previousSensorValue = sensorValue;
+
+          bool fanStateChanged = false;
+          if (StopStart.StartTemp != 0 && StopStart.StopTemp != 0 && StopStart.StartTemp >= StopStart.StopTemp) {
+            if (fanStatus != 1 && sensorValue > StopStart.StartTemp) {
+              fanStatus = 1;
+              fanStateChanged = true;
+            } else if (fanStatus != 0 && sensorValue < StopStart.StopTemp) {
+              fanStatus = 0;
+              fanStateChanged = true;
+            }
+          } else {
+            fanStatus = -1;
+          }
+
           // As of writing this, a Control is controlled with percentages. Round away decimals
-          targetValue = (float)Math.Round(Calculate(sensorValue));
-          if (Value != targetValue) {
+          targetValue = (fanStatus == 0) ? 0.0f : (float)Math.Round(Calculate(sensorValue));
+          if (Value != targetValue || fanStateChanged) {
             Value = targetValue;
             SoftwareCurveValueChanged(this);
           }
@@ -433,6 +480,13 @@ namespace OpenHardwareMonitor.Hardware {
     public override string ToString() {
       StringBuilder builder = new StringBuilder();
 
+      // Fan Stop/Start threshold temps
+      builder.Append(StopStart.StopTemp.ToString(CultureInfo.InvariantCulture));
+      builder.Append('!');
+      builder.Append(StopStart.StartTemp.ToString(CultureInfo.InvariantCulture));
+      builder.Append(';');
+
+      // Fan control curve temp/pwm points
       foreach (var point in Points) {
         builder.Append(point.SensorValue.ToString(CultureInfo.InvariantCulture));
         builder.Append(':');
@@ -440,6 +494,7 @@ namespace OpenHardwareMonitor.Hardware {
         builder.Append(';');
       }
 
+      // Sensor source
       builder.Append(Sensor.Identifier.ToString());
 
       return builder.ToString();
@@ -448,6 +503,11 @@ namespace OpenHardwareMonitor.Hardware {
     internal class SoftwareCurvePoint : ISoftwareCurvePoint {
       public float SensorValue { get; set; }
       public float ControlValue { get; set; }
+    }
+
+    internal class FanStopStartValues : IFanStopStartValues {
+      public float StopTemp { get; set; }
+      public float StartTemp { get; set; }
     }
   }
 }
