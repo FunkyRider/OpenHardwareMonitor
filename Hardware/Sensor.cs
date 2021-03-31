@@ -26,7 +26,7 @@ namespace OpenHardwareMonitor.Hardware {
     private readonly SensorType sensorType;
     private readonly Hardware hardware;
     private readonly ReadOnlyArray<IParameter> parameters;
-    private float?[] previousValues = new float?[10];
+    private float?[] previousValues = new float?[5];
     private float? currentValue;
     private float? minValue;
     private float? maxValue;
@@ -208,8 +208,10 @@ namespace OpenHardwareMonitor.Hardware {
         if (count > 0) {
           velocity /= count;
         }
-        
-        return (Math.Abs(velocity) > 10) ? this.currentValue : ((count > 0) ? (total / count) : null);
+
+        double raw = Math.Round(this.currentValue.Value / 10.0f) * 10;
+        double smoothed = (count > 0) ? (Math.Round(total.Value / count / 10.0f) * 10) : 0;
+        return (float?)((Math.Abs(velocity) > 10) ? raw : smoothed);
       }
     }
 

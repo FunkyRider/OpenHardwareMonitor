@@ -143,8 +143,8 @@ namespace OpenHardwareMonitor.GUI
             this.label5.Name = "label5";
             this.label5.Size = new System.Drawing.Size(564, 13);
             this.label5.TabIndex = 9;
-            this.label5.Text = "Note that some fans require a minimum % to start. If configured incorrectly a fan" +
-    " may stop/start often, which is bad (?).  ";
+            this.label5.Text = "Some fans require a minimum % to start. If configured incorrectly a fan" +
+    " may stop/start often, which is bad for its longevity.";
             // 
             // SensorControlForm
             // 
@@ -165,6 +165,7 @@ namespace OpenHardwareMonitor.GUI
             this.MaximizeBox = false;
             this.MinimizeBox = false;
             this.Name = "SensorControlForm";
+            this.Text = "Smart Fan Curve";
             ((System.ComponentModel.ISupportInitialize)(this.bindingSource1)).EndInit();
             this.ResumeLayout(false);
             this.PerformLayout();

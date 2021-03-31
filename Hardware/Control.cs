@@ -403,6 +403,8 @@ namespace OpenHardwareMonitor.Hardware {
     private void Tick(object s, ElapsedEventArgs e) {
       if (Sensor != null && Sensor.Value.HasValue) {
         float sensorValue = Sensor.Value.Value;
+        bool fanStateChanged = false;
+
         if (stableValue == sensorValue && stableCount < 10) {
           stableCount++;
         } else {
@@ -413,8 +415,6 @@ namespace OpenHardwareMonitor.Hardware {
         // A stable value of 10 consecutive samples within hystersis also forces an update.
         if (previousSensorValue < sensorValue - 1 || previousSensorValue > sensorValue + 1 || (previousSensorValue != sensorValue && stableCount >= 10)) {
           previousSensorValue = sensorValue;
-
-          bool fanStateChanged = false;
           if (StopStart.StartTemp != 0 && StopStart.StopTemp != 0 && StopStart.StartTemp >= StopStart.StopTemp) {
             if (fanStatus != 1 && sensorValue > StopStart.StartTemp) {
               fanStatus = 1;
@@ -426,13 +426,21 @@ namespace OpenHardwareMonitor.Hardware {
           } else {
             fanStatus = -1;
           }
-
           // As of writing this, a Control is controlled with percentages. Round away decimals
           targetValue = (fanStatus == 0) ? 0.0f : (float)Math.Round(Calculate(sensorValue));
-          if (Value != targetValue || fanStateChanged) {
+        }
+
+        if (Value != targetValue || fanStateChanged) {
+          if (Value - targetValue > 50) {
+            Value -= 5;
+          } else if (Value - targetValue > 10) {
+            Value -= 2;
+          } else if (Value - targetValue > 1) {
+            Value--;
+          } else {
             Value = targetValue;
-            SoftwareCurveValueChanged(this);
           }
+          SoftwareCurveValueChanged(this);
         }
       } else {
         previousNoValue++;

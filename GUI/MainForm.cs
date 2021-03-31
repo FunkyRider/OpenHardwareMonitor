@@ -777,12 +777,12 @@ namespace OpenHardwareMonitor.GUI {
                 };
               }
             }
-            MenuItem curveItem = new MenuItem("Manual Curve");
+            MenuItem curveItem = new MenuItem("Smart");
             controlItem.MenuItems.Add(curveItem);
             curveItem.Checked = control.ActualControlMode == ControlMode.SoftwareCurve;
             MenuItem newCurveItem = new MenuItem("New");
             newCurveItem.Click += delegate (object obj, EventArgs args) {
-              var confirmSensorselect = MessageBox.Show("Select the other sensor after clicking OK.", "New Manual Curve", MessageBoxButtons.OKCancel);
+              var confirmSensorselect = MessageBox.Show("Select the other sensor after clicking OK.", "New Fan Curve", MessageBoxButtons.OKCancel);
               if (confirmSensorselect == DialogResult.OK) {
                 // Listen for user click on sensor
                 EventHandler selectorListener = null;
@@ -803,7 +803,7 @@ namespace OpenHardwareMonitor.GUI {
                     }
                   }
 
-                  var tryagainSensorselect = MessageBox.Show("Could not find sensor. Try again?", "Manual Curve", MessageBoxButtons.RetryCancel);
+                  var tryagainSensorselect = MessageBox.Show("Could not find sensor. Try again?", "Fan Curve", MessageBoxButtons.RetryCancel);
                   if (tryagainSensorselect != DialogResult.Retry)
                     this.treeView.Click -= selectorListener;
                 };
