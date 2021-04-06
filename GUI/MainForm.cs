@@ -356,6 +356,7 @@ namespace OpenHardwareMonitor.GUI {
     private void InitializePlotForm() {
       plotForm = new Form();
       plotForm.FormBorderStyle = FormBorderStyle.SizableToolWindow;
+      plotForm.Text = "Plot";
       plotForm.ShowInTaskbar = false;
       plotForm.StartPosition = FormStartPosition.Manual;
       this.AddOwnedForm(plotForm);

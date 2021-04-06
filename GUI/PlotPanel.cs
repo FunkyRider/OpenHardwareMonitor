@@ -45,7 +45,7 @@ namespace OpenHardwareMonitor.GUI {
       this.plot = new Plot();
       this.plot.Dock = DockStyle.Fill;
       this.plot.Model = model;
-      this.plot.BackColor = Color.White;
+      this.plot.BackColor = Color.FromArgb(32, 32, 32);
       this.plot.ContextMenu = CreateMenu();
 
       UpdateAxesPosition();
@@ -115,12 +115,15 @@ namespace OpenHardwareMonitor.GUI {
     private PlotModel CreatePlotModel() {
 
       timeAxis.Position = AxisPosition.Bottom;
+      timeAxis.AxislineStyle = LineStyle.Solid;
+      timeAxis.AxislineColor = OxyColor.FromRgb(192, 192, 192);
+      timeAxis.TicklineColor = timeAxis.AxislineColor;
       timeAxis.MajorGridlineStyle = LineStyle.Solid;
       timeAxis.MajorGridlineThickness = 1;
-      timeAxis.MajorGridlineColor = OxyColor.FromRgb(192, 192, 192);
+      timeAxis.MajorGridlineColor = OxyColor.FromRgb(96, 96, 96);
       timeAxis.MinorGridlineStyle = LineStyle.Solid;
       timeAxis.MinorGridlineThickness = 1;
-      timeAxis.MinorGridlineColor = OxyColor.FromRgb(232, 232, 232);
+      timeAxis.MinorGridlineColor = OxyColor.FromRgb(56, 56, 56);
       timeAxis.StartPosition = 1;
       timeAxis.EndPosition = 0;
       timeAxis.MinimumPadding = 0;
@@ -132,6 +135,8 @@ namespace OpenHardwareMonitor.GUI {
         settings.GetValue("plotPanel.MinTimeSpan", 0.0f),
         settings.GetValue("plotPanel.MaxTimeSpan", 10.0f * 60));
       timeAxis.StringFormat = "h:mm";
+      timeAxis.TextColor = OxyColor.FromRgb(192, 192, 192);
+      timeAxis.TitleColor = timeAxis.TextColor;
 
       var units = new Dictionary<SensorType, string>();
       units.Add(SensorType.Voltage, "V");
@@ -156,13 +161,17 @@ namespace OpenHardwareMonitor.GUI {
         axis.MinorGridlineThickness = 1;
         axis.MinorGridlineColor = timeAxis.MinorGridlineColor;
         axis.AxislineStyle = LineStyle.Solid;
+        axis.AxislineColor = timeAxis.AxislineColor;
+        axis.TicklineColor = timeAxis.TicklineColor;
         axis.Title = type.ToString();
         axis.Key = type.ToString();
+        axis.TextColor = timeAxis.TextColor;
+        axis.TitleColor = timeAxis.TextColor;
 
         axis.Zoom(
           settings.GetValue("plotPanel.Min" + axis.Key, float.NaN),
           settings.GetValue("plotPanel.Max" + axis.Key, float.NaN));
-
+        
         if (units.ContainsKey(type))
           axis.Unit = units[type];
         axes.Add(type, axis);
@@ -174,7 +183,7 @@ namespace OpenHardwareMonitor.GUI {
         model.Axes.Add(axis);
       model.PlotMargins = new OxyThickness(0);
       model.IsLegendVisible = false;
-
+      model.PlotAreaBorderColor = OxyColor.FromRgb(128, 128, 128);
       return model;
     }
 
