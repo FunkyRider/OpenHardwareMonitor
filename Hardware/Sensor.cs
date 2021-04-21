@@ -234,7 +234,7 @@ namespace OpenHardwareMonitor.Hardware {
           }
         }
 
-        if (this.sensorType == SensorType.Fan) {
+        if (this.sensorType == SensorType.Fan || this.sensorType == SensorType.Temperature) {
           this.addPreviousValue(this.currentValue);
         }
         this.currentValue = value;
@@ -242,6 +242,27 @@ namespace OpenHardwareMonitor.Hardware {
           minValue = value;
         if (maxValue < value || !maxValue.HasValue)
           maxValue = value;
+      }
+    }
+
+    public float? AverageValue {
+      get {
+        int count = (this.currentValue != null) ? 1 : 0;
+        float? total = this.currentValue;
+        for (var i = 0; i < this.previousValues.Length; i++) {
+          if (this.previousValues[i] == null) {
+            break;
+          }
+          float v = this.previousValues[i].Value;
+          if (total == null) {
+            total = v;
+            count = 1;
+          } else {
+            total += v;
+            count++;
+          }
+        }
+        return total / count;
       }
     }
 

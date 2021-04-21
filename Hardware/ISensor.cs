@@ -58,6 +58,7 @@ namespace OpenHardwareMonitor.Hardware {
     IReadOnlyArray<IParameter> Parameters { get; }
 
     float? Value { get; }
+    float? AverageValue { get; }
     float? Min { get; }
     float? Max { get; }
 

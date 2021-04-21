@@ -401,8 +401,8 @@ namespace OpenHardwareMonitor.Hardware {
       timer.Start();
     }
     private void Tick(object s, ElapsedEventArgs e) {
-      if (Sensor != null && Sensor.Value.HasValue) {
-        float sensorValue = Sensor.Value.Value;
+      if (Sensor != null && Sensor.AverageValue.HasValue) {
+        float sensorValue = Sensor.AverageValue.Value;
         bool fanStateChanged = false;
 
         if (stableValue == sensorValue && stableCount < 10) {
