@@ -99,7 +99,8 @@ namespace OpenHardwareMonitor.Hardware.LPC {
             (ReadByte(FAN_MAIN_CTRL_REG, out _) & (1 << index)) > 0;
         }
 
-        if (chip == Chip.IT8721F || 
+        if (chip == Chip.IT8721F ||
+            chip == Chip.IT8728F ||
             chip == Chip.IT8665E ||
             chip == Chip.IT8686E ||
             chip == Chip.IT8688E ||
@@ -125,6 +126,7 @@ namespace OpenHardwareMonitor.Hardware.LPC {
         }
 
         if (chip == Chip.IT8721F ||
+            chip == Chip.IT8728F ||
             chip == Chip.IT8665E ||
             chip == Chip.IT8686E ||
             chip == Chip.IT8688E ||
@@ -154,6 +156,7 @@ namespace OpenHardwareMonitor.Hardware.LPC {
         }
 
         if (chip == Chip.IT8721F ||
+            chip == Chip.IT8728F ||
             chip == Chip.IT8665E ||
             chip == Chip.IT8686E ||
             chip == Chip.IT8688E ||
@@ -276,6 +279,7 @@ namespace OpenHardwareMonitor.Hardware.LPC {
           break;
         case Chip.IT8720F:
         case Chip.IT8721F:
+        case Chip.IT8728F:
           gpioCount = 8;
           break;
         default:
@@ -423,6 +427,7 @@ namespace OpenHardwareMonitor.Hardware.LPC {
         } else {
           // software operation
           if (chip == Chip.IT8721F ||
+              chip == Chip.IT8728F ||
               chip == Chip.IT8665E ||
               chip == Chip.IT8686E ||
               chip == Chip.IT8688E ||
