@@ -307,5 +307,7 @@ namespace OpenHardwareMonitor.Hardware {
         this.control = value;
       }
     }
+
+    public virtual void NotifyHardwareAdded(List<IGroup> allhardware) { }
   }
 }

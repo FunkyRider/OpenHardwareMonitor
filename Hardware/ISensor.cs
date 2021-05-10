@@ -69,6 +69,7 @@ namespace OpenHardwareMonitor.Hardware {
     IEnumerable<SensorValue> Values { get; }
 
     IControl Control { get; }
+    void NotifyHardwareAdded(List<IGroup> allhardware);
   }
 
 }

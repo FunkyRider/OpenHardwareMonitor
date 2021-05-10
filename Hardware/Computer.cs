@@ -32,7 +32,8 @@ namespace OpenHardwareMonitor.Hardware {
     private bool ramEnabled;
     private bool gpuEnabled;
     private bool fanControllerEnabled;
-    private bool hddEnabled;    
+    private bool hddEnabled;
+    private bool virtualEnabled;
 
     public Computer() {
       this.settings = new Settings();
@@ -124,6 +125,9 @@ namespace OpenHardwareMonitor.Hardware {
 
       if (hddEnabled)
         Add(new HDD.HarddriveGroup(settings));
+
+      if (virtualEnabled)
+        Add(new Virtual.VirtualGroup(settings));
     }
 
     public void Reset() {
@@ -142,14 +146,17 @@ namespace OpenHardwareMonitor.Hardware {
 
     private void NotifySoftwareCurveControllersHardwareAdded(IHardware iterate, List<IGroup> allhardware) {
       iterate.SensorAdded += delegate (ISensor sensor) {
+        sensor.NotifyHardwareAdded(allhardware);
         if (sensor.Control != null) {
           sensor.Control.NotifyHardwareAdded(allhardware);
         }
       };
 
-      foreach (ISensor sensor in iterate.Sensors)
+      foreach (ISensor sensor in iterate.Sensors) {
+        sensor.NotifyHardwareAdded(allhardware);
         if (sensor.Control != null)
           sensor.Control.NotifyHardwareAdded(allhardware);
+      }
 
       foreach (IHardware subHardware in iterate.SubHardware)
         NotifySoftwareCurveControllersHardwareAdded(subHardware, allhardware);
@@ -257,6 +264,21 @@ namespace OpenHardwareMonitor.Hardware {
             RemoveType<HDD.HarddriveGroup>();
         }
         hddEnabled = value;
+      }
+    }
+
+    public bool VirtualEnabled {
+      get { return virtualEnabled; }
+
+      [SecurityPermission(SecurityAction.LinkDemand, UnmanagedCode = true)]
+      set {
+        if (open && value != virtualEnabled) {
+          if (value)
+            Add(new Virtual.VirtualGroup(settings));
+          else
+            RemoveType<Virtual.VirtualGroup>();
+        }
+        virtualEnabled = value;
       }
     }
 
