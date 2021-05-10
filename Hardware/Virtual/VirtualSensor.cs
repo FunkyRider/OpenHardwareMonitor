@@ -36,10 +36,17 @@ namespace OpenHardwareMonitor.Hardware.Virtual {
       max
     }
 
+    private class BiasScale {
+      public float bias;
+      public float scale;
+    }
+
     private class VirtualSensorItem : Sensor {
       private Combiner combiner;
       private List<ISensor> sources;
       private List<String> identifiers;
+      private List<BiasScale> biasScales;
+
       public VirtualSensorItem(string name, int index, SensorType type, Hardware hardware, ISettings settings)
         : base(name, index, type, hardware, settings) {
         string key = "/virtual/" + index.ToString() + "/source";
@@ -48,24 +55,36 @@ namespace OpenHardwareMonitor.Hardware.Virtual {
         combiner = (Combiner)Enum.Parse(typeof(Combiner), data[0]);
         sources = new List<ISensor>();
         identifiers = new List<String>();
+        biasScales = new List<BiasScale>();
 
         for (int i = 1; i < data.Length; i++) {
-          identifiers.Add(data[i]);
+          var id = data[i].Split(',');
+          BiasScale bs = new BiasScale();
+          bs.bias = (id.Length > 1) ? float.Parse(id[1]) : 0;
+          bs.scale = (id.Length > 2) ? float.Parse(id[2]) : 1;
+          identifiers.Add(id[0]);
           sources.Add(null);
+          biasScales.Add(bs);
         }
       }
 
       public void update() {
         float? value = 0;
-        foreach (ISensor s in sources) {
+        for (int i = 0; i < sources.Count; i ++) {
+          ISensor s = sources[i];
+          BiasScale bs = biasScales[i];
           if (s == null) {
             return;
           }
+          float? bsValue = (s.Value + bs.bias) * bs.scale;
+          if (bsValue < 0) {
+            bsValue = 0;
+          }
           if (combiner == Combiner.sum) {
-            value += s.Value;
+            value += bsValue;
           } else if (combiner == Combiner.max) {
             if (value < s.Value) {
-              value = s.Value;
+              value = bsValue;
             }
           }
         }
