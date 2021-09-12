@@ -51,6 +51,7 @@ namespace OpenHardwareMonitor.GUI {
             this.sumbitReportMenuItem = new System.Windows.Forms.MenuItem();
             this.MenuItem2 = new System.Windows.Forms.MenuItem();
             this.resetMenuItem = new System.Windows.Forms.MenuItem();
+            this.cleanMenuItem = new System.Windows.Forms.MenuItem();
             this.menuItem5 = new System.Windows.Forms.MenuItem();
             this.mainboardMenuItem = new System.Windows.Forms.MenuItem();
             this.cpuMenuItem = new System.Windows.Forms.MenuItem();
@@ -58,6 +59,7 @@ namespace OpenHardwareMonitor.GUI {
             this.gpuMenuItem = new System.Windows.Forms.MenuItem();
             this.fanControllerMenuItem = new System.Windows.Forms.MenuItem();
             this.hddMenuItem = new System.Windows.Forms.MenuItem();
+            this.virtualMenuItem = new System.Windows.Forms.MenuItem();
             this.menuItem6 = new System.Windows.Forms.MenuItem();
             this.exitMenuItem = new System.Windows.Forms.MenuItem();
             this.viewMenuItem = new System.Windows.Forms.MenuItem();
@@ -111,7 +113,6 @@ namespace OpenHardwareMonitor.GUI {
             this.timer = new System.Windows.Forms.Timer(this.components);
             this.splitContainer = new OpenHardwareMonitor.GUI.SplitContainerAdv();
             this.treeView = new Aga.Controls.Tree.TreeViewAdv();
-            this.virtualMenuItem = new System.Windows.Forms.MenuItem();
             ((System.ComponentModel.ISupportInitialize)(this.splitContainer)).BeginInit();
             this.splitContainer.Panel1.SuspendLayout();
             this.splitContainer.SuspendLayout();
@@ -208,6 +209,7 @@ namespace OpenHardwareMonitor.GUI {
             this.sumbitReportMenuItem,
             this.MenuItem2,
             this.resetMenuItem,
+            this.cleanMenuItem,
             this.menuItem5,
             this.menuItem6,
             this.exitMenuItem});
@@ -236,9 +238,15 @@ namespace OpenHardwareMonitor.GUI {
             this.resetMenuItem.Text = "Reset";
             this.resetMenuItem.Click += new System.EventHandler(this.resetClick);
             // 
+            // cleanMenuItem
+            // 
+            this.cleanMenuItem.Index = 4;
+            this.cleanMenuItem.Text = "Clean Fans (10s)";
+            this.cleanMenuItem.Click += new System.EventHandler(this.cleanMenuItem_Click);
+            // 
             // menuItem5
             // 
-            this.menuItem5.Index = 4;
+            this.menuItem5.Index = 5;
             this.menuItem5.MenuItems.AddRange(new System.Windows.Forms.MenuItem[] {
             this.mainboardMenuItem,
             this.cpuMenuItem,
@@ -279,14 +287,19 @@ namespace OpenHardwareMonitor.GUI {
             this.hddMenuItem.Index = 5;
             this.hddMenuItem.Text = "Hard Disk Drives";
             // 
+            // virtualMenuItem
+            // 
+            this.virtualMenuItem.Index = 6;
+            this.virtualMenuItem.Text = "Virtual Sensors";
+            // 
             // menuItem6
             // 
-            this.menuItem6.Index = 5;
+            this.menuItem6.Index = 6;
             this.menuItem6.Text = "-";
             // 
             // exitMenuItem
             // 
-            this.exitMenuItem.Index = 6;
+            this.exitMenuItem.Index = 7;
             this.exitMenuItem.Text = "Exit";
             this.exitMenuItem.Click += new System.EventHandler(this.exitClick);
             // 
@@ -662,11 +675,6 @@ namespace OpenHardwareMonitor.GUI {
             this.treeView.MouseMove += new System.Windows.Forms.MouseEventHandler(this.treeView_MouseMove);
             this.treeView.MouseUp += new System.Windows.Forms.MouseEventHandler(this.treeView_MouseUp);
             // 
-            // virtualMenuItem
-            // 
-            this.virtualMenuItem.Index = 6;
-            this.virtualMenuItem.Text = "Virtual Sensors";
-            // 
             // MainForm
             // 
             this.AutoScaleDimensions = new System.Drawing.SizeF(6F, 13F);
@@ -768,6 +776,7 @@ namespace OpenHardwareMonitor.GUI {
     private System.Windows.Forms.MenuItem log2hMenuItem;
     private System.Windows.Forms.MenuItem log6hMenuItem;
     private System.Windows.Forms.MenuItem virtualMenuItem;
+    private System.Windows.Forms.MenuItem cleanMenuItem;
   }
 }
 

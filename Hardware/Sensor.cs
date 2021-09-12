@@ -13,6 +13,7 @@ using System.Collections.Generic;
 using System.Globalization;
 using System.IO;
 using System.IO.Compression;
+using System.Runtime.InteropServices;
 using OpenHardwareMonitor.Collections;
 
 namespace OpenHardwareMonitor.Hardware {
@@ -27,6 +28,8 @@ namespace OpenHardwareMonitor.Hardware {
     private readonly Hardware hardware;
     private readonly ReadOnlyArray<IParameter> parameters;
     private float?[] previousValues = new float?[5];
+    private float[] voltValues;
+    private int voltCursor;
     private float? currentValue;
     private float? minValue;
     private float? maxValue;
@@ -34,10 +37,35 @@ namespace OpenHardwareMonitor.Hardware {
       values = new RingCollection<SensorValue>();
     private readonly ISettings settings;
     private IControl control;
+    private bool throttle;
     
     private float sum;
     private int count;
-   
+
+    [DllImport("PowrProf.dll", CharSet = CharSet.Unicode)]
+    static extern UInt32 PowerWriteDCValueIndex(IntPtr RootPowerKey,
+    [MarshalAs(UnmanagedType.LPStruct)] Guid SchemeGuid,
+    [MarshalAs(UnmanagedType.LPStruct)] Guid SubGroupOfPowerSettingsGuid,
+    [MarshalAs(UnmanagedType.LPStruct)] Guid PowerSettingGuid,
+    int AcValueIndex);
+
+    [DllImport("PowrProf.dll", CharSet = CharSet.Unicode)]
+    static extern UInt32 PowerWriteACValueIndex(IntPtr RootPowerKey,
+        [MarshalAs(UnmanagedType.LPStruct)] Guid SchemeGuid,
+        [MarshalAs(UnmanagedType.LPStruct)] Guid SubGroupOfPowerSettingsGuid,
+        [MarshalAs(UnmanagedType.LPStruct)] Guid PowerSettingGuid,
+        int AcValueIndex);
+
+    [DllImport("PowrProf.dll", CharSet = CharSet.Unicode)]
+    static extern UInt32 PowerSetActiveScheme(IntPtr RootPowerKey,
+        [MarshalAs(UnmanagedType.LPStruct)] Guid SchemeGuid);
+
+    [DllImport("PowrProf.dll", CharSet = CharSet.Unicode)]
+    static extern UInt32 PowerGetActiveScheme(IntPtr UserPowerKey, out IntPtr ActivePolicyGuid);
+
+    static readonly Guid GUID_PROCESSOR_SETTINGS_SUBGROUP = new Guid("54533251-82be-4824-96c1-47b60b740d00");
+    static readonly Guid GUID_BOOSTMODE= new Guid("be337238-0d82-4146-a960-4f3749d470c7");
+
     public Sensor(string name, int index, SensorType sensorType,
       Hardware hardware, ISettings settings) : 
       this(name, index, sensorType, hardware, null, settings) { }
@@ -56,11 +84,19 @@ namespace OpenHardwareMonitor.Hardware {
       this.defaultHidden = defaultHidden;
       this.sensorType = sensorType;
       this.hardware = hardware;
+      this.throttle = false;
+      int boostParams = 0;
+      if (name == "CPU VCore") {
+        SetProcessorBoostMode(2);
+        boostParams = 3;
+      }
+
       Parameter[] parameters = new Parameter[parameterDescriptions == null ?
-        0 : parameterDescriptions.Length];
-      for (int i = 0; i < parameters.Length; i++ ) 
-        parameters[i] = new Parameter(parameterDescriptions[i], this, settings);
-      this.parameters = parameters;
+        0 : parameterDescriptions.Length + boostParams];
+      if (parameterDescriptions != null) {
+        for (int i = 0; i < parameterDescriptions.Length; i++)
+          parameters[i] = new Parameter(parameterDescriptions[i], this, settings);
+      }
 
       this.settings = settings;
       this.defaultName = name; 
@@ -75,6 +111,14 @@ namespace OpenHardwareMonitor.Hardware {
           control.NotifyClosing();
         }
       };
+
+      if (name == "CPU VCore") {
+        int i = parameterDescriptions.Length;
+        parameters[i++] = new Parameter(new ParameterDescription("Tau", "Continous boosting time", 30.0f), this, settings);
+        parameters[i++] = new Parameter(new ParameterDescription("VBoost", "Boost voltage threshold", 1.28f), this, settings);
+        parameters[i++] = new Parameter(new ParameterDescription("VRest", "Rest voltage threshold", 1.08f), this, settings);
+      }
+      this.parameters = parameters;
     }
 
     private void SetSensorValuesToSettings() {/*
@@ -215,15 +259,87 @@ namespace OpenHardwareMonitor.Hardware {
       }
     }
 
+    private float readParameter(string name) {
+      for (int i = 0; i < parameters.Length; i++) {
+        IParameter p = parameters[i];
+        if (p.Name == name) {
+          return p.Value;
+        }
+      }
+      return 0;
+    }
+
+    // When VCore > 1.28v for longer than 30 seconds, disable boost until avg VCore < 1.08v for 10 seconds
+    private void VCoreProtect(float volt) {
+      var tau = (int)readParameter("Tau");
+      if (tau == 0) {
+        if (throttle) {
+          throttle = false;
+          // Enable Boost
+          SetProcessorBoostMode(2);
+        }
+        return;
+      }
+      // Accumulate voltage reading
+      if (voltValues == null || voltValues.Length != tau) {
+        voltValues = new float[tau];
+        voltCursor = 0;
+      }
+      voltValues[voltCursor] = (volt > 1.0f ? volt : 1.0f);
+
+      // Find min, max
+      float? vMin = voltValues[0], vMax = voltValues[0], vAvg = voltValues[0];
+      for (var i = 1; i < voltValues.Length; i++) {
+        if (vMin > voltValues[i]) {
+          vMin = voltValues[i];
+        }
+        if (vMax < voltValues[i]) {
+          vMax = voltValues[i];
+        }
+        vAvg += voltValues[i];
+      }
+      vAvg /= (float)voltValues.Length;
+      if (++voltCursor >= voltValues.Length) voltCursor = 0;
+
+      float vBoost = readParameter("VBoost");
+      if (!throttle && vMin > vBoost) {
+        throttle = true;
+        // Disable Boost
+        SetProcessorBoostMode(0);
+      } else if (throttle && vAvg < readParameter("VRest") && vMax <= vBoost) {
+        throttle = false;
+        // Enable Boost
+        SetProcessorBoostMode(2);
+      }
+    }
+
+    private void SetProcessorBoostMode(int mode) {
+      IntPtr pActiveSchemeGuid;
+      var hr = PowerGetActiveScheme(IntPtr.Zero, out pActiveSchemeGuid);
+      Guid activeSchemeGuid = (Guid)Marshal.PtrToStructure(pActiveSchemeGuid, typeof(Guid));
+
+      hr = PowerWriteACValueIndex(
+           IntPtr.Zero,
+           activeSchemeGuid,
+           GUID_PROCESSOR_SETTINGS_SUBGROUP,
+           GUID_BOOSTMODE,
+           mode);
+
+      PowerSetActiveScheme(IntPtr.Zero, activeSchemeGuid); //This is necessary to apply the current scheme.
+    }
+
     public float? Value {
       get { 
-        return currentValue; 
+        return throttle ? -currentValue: currentValue;
       }
       set {
+        if (this.Name == "CPU VCore") {
+          this.VCoreProtect(value.HasValue ? value.Value : 0);
+        }
+
         DateTime now = DateTime.UtcNow;
         while (values.Count > 0 && (now - values.First.Time).TotalDays > 1)
           values.Remove();
-
         if (value.HasValue) {
           sum += value.Value;
           count++;

@@ -181,6 +181,8 @@
       <SubType>Designer</SubType>
     </None>
     <None Include="Resources\icon.ico" />
+    <EmbeddedResource Include="Resources\Web\weather-icons-lite.ttf" />
+    <EmbeddedResource Include="Resources\Web\fontawesome.ttf" />
   </ItemGroup>
   <ItemGroup>
     <EmbeddedResource Include="Resources\smallicon.ico" />
@@ -307,6 +309,12 @@
   </ItemGroup>
   <ItemGroup>
     <EmbeddedResource Include="Resources\throughput.png" />
+  </ItemGroup>
+  <ItemGroup>
+    <EmbeddedResource Include="Resources\Web\pcmon.html" />
+  </ItemGroup>
+  <ItemGroup>
+    <EmbeddedResource Include="Resources\Web\fontawesome.css" />
   </ItemGroup>
   <Import Project="$(MSBuildBinPath)\Microsoft.CSharp.targets" />
   <ProjectExtensions>

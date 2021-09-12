@@ -1,0 +1,580 @@
+<html>
+<head>
+	<meta name="mobile-web-app-capable" content="yes" />
+	<meta name="apple-mobile-web-app-capable" content="yes" />
+	<meta name="apple-mobile-web-app-status-bar-style" content="black-translucent" />
+	<link rel="stylesheet" href="fontawesome.css">
+	<style>
+		body {
+			background-color: black;
+			font-family: Helvetica;
+			font-size: 3.5rem;
+			color: white;
+			padding: 0;
+			margin: 0;
+		}
+
+		.container {
+			width: 960px;
+			border: 1px solid #000;
+			padding: 1rem;
+			margin: 0;
+			position: fixed;
+			top: 0;
+			left: 0;
+		}
+
+		.cpu {
+			color: #FF6000;
+			width: 470px;
+			float: left;
+			margin-left: 1rem;
+		}
+
+		.gpu {
+			color: lime;
+			width: 470px;
+			float: right;
+		}
+
+		.unit {
+			font-size: 2rem;
+			margin-left: 0.3rem;
+		}
+
+		.fans {
+			color: cyan;
+			clear: both;
+			padding: 1.3rem 1rem 1.3rem 0;
+		}
+
+		.fan {
+			color: cyan;
+			font-size: 4rem;
+			text-align: center;
+			width: 230px;
+		}
+
+		.fanname {
+			font-size: 2rem;
+			padding: 0.3rem 0;
+			color: cyan;
+			text-align: center;
+		}
+
+		.temperature {
+			font-size: 9rem;
+			line-height: 0.98;
+		}
+
+		.tsign {
+			font-size: 6rem;
+		}
+
+		.date {
+			float: left;
+			font-size: 3.5rem;
+			color: white;
+		}
+
+		.time {
+			float: right;
+			font-size: 3.5rem;
+			color: white;
+			padding-right: 1rem;
+		}
+
+		.weather {
+			float: right;
+			font-size: 3.5rem;
+			padding-right: 1.6rem;
+			color: #69F;
+		}
+
+		.error {
+			font-size: 3rem;
+			color: white;
+			z-index: 10;
+			position: fixed;
+			top: 0;
+			left: 0;
+			width: 960px;
+			height: 500px;
+			padding: 1rem;
+			margin: 0;
+			background-color: black;
+			opacity: 1.0;
+			text-align: center;
+		}
+
+		#time {
+			padding-top: 1rem;
+			font-size: 12rem;
+		}
+
+		#date {
+			font-size: 6rem;
+		}
+
+		#weather2 {
+			padding-top: 2rem;
+			font-size: 6rem;
+			color: #69F;
+		}
+
+		#graph {
+			padding: 1rem;
+			z-index: -10;
+			position: fixed;
+			top: 0;
+			left: 0;
+			width: 960px;
+			height: 500px;
+		}
+
+		#canvas {
+			width: 960px;
+			height: 500px;
+			display: block;
+			background-color: #000;
+		}
+
+		.footer {
+			clear: both
+		}
+
+		@font-face {
+			font-family: 'weather-icons-lite';
+			font-weight: normal;
+			font-style: normal;
+			src: url('weather-icons-lite.ttf') format('truetype');
+		}
+
+		.wi {
+			display: inline-block;
+			font-family: 'weather-icons-lite';
+			font-style: normal;
+			font-weight: normal;
+			line-height: 1;
+		}
+
+		.dot {
+			height: 2.5rem;
+			width: 2.5rem;
+			background-color: #FF6000;
+			border-radius: 50%;
+			display: inline-block;
+			position: fixed;
+			top: 0;
+			left: 0;
+			display: none;
+			margin: 1.5rem;
+		}
+
+		.wi-owm-01d:before {
+			content: "\f00d";
+		}
+
+		.wi-owm-02d:before {
+			content: "\f00c";
+		}
+
+		.wi-owm-03d:before {
+			content: "\f002";
+		}
+
+		.wi-owm-04d:before {
+			content: "\f013";
+		}
+
+		.wi-owm-09d:before {
+			content: "\f017";
+		}
+
+		.wi-owm-10d:before {
+			content: "\f019";
+		}
+
+		.wi-owm-11d:before {
+			content: "\f01e";
+		}
+
+		.wi-owm-13d:before {
+			content: "\f01b";
+		}
+
+		.wi-owm-50d:before {
+			content: "\f014";
+		}
+
+		.wi-owm-01n:before {
+			content: "\f02e";
+		}
+
+		.wi-owm-02n:before {
+			content: "\f081";
+		}
+
+		.wi-owm-03n:before {
+			content: "\f07e";
+		}
+
+		.wi-owm-04n:before {
+			content: "\f086";
+		}
+
+		.wi-owm-09n:before {
+			content: "\f026";
+		}
+
+		.wi-owm-10n:before {
+			content: "\f028";
+		}
+
+		.wi-owm-11n:before {
+			content: "\f02c";
+		}
+
+		.wi-owm-13n:before {
+			content: "\f02a";
+		}
+
+		.wi-owm-50n:before {
+			content: "\f04a";
+		}
+
+		.throttle {
+			color: #00cc00;
+		}
+	</style>
+	<script>
+		var key = "2eb3ecfabc2d39c70d66943eae8ea3e4";
+		var city = "Auckland";
+		var url = "";//http://192.168.1.13:8085";
+		var fanIndex = [0, 1, 4, 2, 3, 5];
+		var DayOfWeek = ["Sun", "Mon", "Tue", "Wed", "Thu", "Fri", "Sat"];
+		var Month = ["Jan", "Feb", "Mar", "Apr", "May", "Jun", "Jul", "Aug", "Sep", "Oct", "Nov", "Dec"];
+		var weather = "---";
+		var defaultAttr = {
+			cpu: { name: "CPU", voltage: "-", temperature: "-", power: "-", fan: "-" },
+			gpu: { name: "GPU", voltage: "-", hotspot: "-", temperature: "-", power: "-", fan: "-" },
+			fans: []
+		};
+
+		function fetch() {
+			try {
+				//document.getElementById("dot").style.display = "block";
+				var xmlhttp = new XMLHttpRequest();
+				xmlhttp.timeout = 5000;
+				xmlhttp.onload = function (e) {
+					var data = JSON.parse(xmlhttp.responseText);
+					display(data);
+					//document.getElementById("dot").style.display = "none";
+				}
+				xmlhttp.ontimeout = function (e) {
+					nodata();
+				}
+				xmlhttp.onerror = function (e) {
+					nodata();
+				}
+				xmlhttp.open("GET", url + "/data_simp.json");
+				xmlhttp.send();
+			} catch (e) {
+				nodata();
+			}
+		}
+
+		function nodata() {
+			document.getElementById("error").style.display = "block";
+			renderDateWeather();
+			setTimeout(fetch, 1000);
+		}
+
+		function display(data) {
+			var dcpu = findCPU(data), dgpu = findGPU(data), mb = data.Children[0].Children[0].Children[0];
+			var maxClock = 0;
+			var clocks = findItem(dcpu, "Clocks");
+			clocks.Children.forEach(function (clock) {
+				if (clock.Text.startsWith("CPU Core")) {
+					var clk = parseInt(clock.Value);
+					if (maxClock < clk) {
+						maxClock = clk;
+					}
+				}
+			});
+
+			var attr = {
+				cpu: {
+					name: dcpu.Text,
+					clock: maxClock,
+					voltage: parseFloat(findItem(findItem(mb, "Voltages"), "CPU VCore").Value),
+					temperature: parseFloat(findItem(findItem(dcpu, "Temperatures"), ["CPU Package", "CPU"]).Value),
+					power: parseInt(findItem(findItem(dcpu, "Powers"), ["CPU Package", "CPU"]).Value),
+					load: parseInt(findItem(findItem(dcpu, "Load"), ["CPU Total", "CPU"]).Value)
+				},
+				gpu: {
+					name: dgpu.Text,
+					clock: parseInt(findItem(findItem(dgpu, "Clocks"), ["GPU Core", "GPU"]).Value),
+					voltage: parseFloat(findItem(findItem(dgpu, "Voltages"), ["GPU Core", "GPU"]).Value),
+					temperature: parseFloat(findItem(findItem(dgpu, "Temperatures"), ["GPU Core", "GPU"]).Value),
+					hotspot: parseFloat(findItem(findItem(dgpu, "Temperatures"), ["GPU Hot Spot", "GPU"]).Value),
+					power: parseInt(findItem(findItem(dgpu, "Powers"), "GPU Total").Value),
+					load: parseInt(findItem(findItem(dgpu, "Load"), "GPU Core").Value),
+					fan: parseInt(findItem(findItem(dgpu, "Fans"), "GPU Fan").Value)
+				},
+				fans: []
+			};
+
+			var fans = findItem(mb, "Fans").Children;
+			for (var i = 0; i < fans.length - 1; i++) {
+				attr.fans.push({ name: fans[i].Text, value: parseInt(fans[i].Value) });
+			}
+
+			document.getElementById("error").style.display = "none";
+			document.getElementById("container").innerHTML = renderDash(attr) + renderDateWeather();
+
+			updateGraph(attr.cpu.temperature, attr.gpu.hotspot);
+
+			setTimeout(fetch, 2000);
+		}
+
+		var t_size = 460;
+		var cpu_temp = new Array(t_size).fill(30);
+		var gpu_temp = new Array(t_size).fill(30);
+		var t_curr = 0, t_min = 30, t_max = 80;
+		var v_scale = 5.8;
+
+		function updateGraph(ct, gt) {
+			if (ct > t_max) ct = t_max; else if (ct < t_min) ct = t_min;
+			if (gt > t_max) gt = t_max; else if (gt < t_min) gt = t_min;
+
+			var canvas = document.getElementById("canvas");
+			if (t_curr >= t_size) {
+				t_curr = 0;
+			}
+			cpu_temp[t_curr] = ct;
+			gpu_temp[t_curr] = gt;
+
+			if (canvas.style.display === "none") {
+				return;
+			}
+			var ctx = canvas.getContext("2d");
+			ctx.clearRect(0, 0, canvas.width, canvas.height);
+			drawGraph(ctx, cpu_temp, 0, 0, '#cc0000', '#770000');
+			drawGraph(ctx, gpu_temp, t_size + 20, 0, '#00aa00', '#006600');
+
+			t_curr++;
+		}
+
+		function drawGraph(ctx, t, x, y, lcolor, fcolor) {
+			ctx.strokeStyle = lcolor;
+			ctx.fillStyle = fcolor;
+			ctx.lineWidth = 2 * window.devicePixelRatio;
+			ctx.beginPath();
+			ctx.moveTo(x * window.devicePixelRatio, y + (t_max - t_min) * v_scale * window.devicePixelRatio);
+			ctx.lineTo((x + t_size) * window.devicePixelRatio, (y + (t_max - t_min) * v_scale) * window.devicePixelRatio);
+			ctx.stroke();
+
+			ctx.lineWidth = window.devicePixelRatio;
+			ctx.beginPath();
+			ctx.moveTo(x * window.devicePixelRatio, (y + (t_max - t_min) * v_scale) * window.devicePixelRatio);
+			ctx.lineTo(x * window.devicePixelRatio, (y + (t_max - t[t_curr < (t_size - 1) ? t_curr + 1 : 0]) * v_scale) * window.devicePixelRatio);
+			for (var i = 1; i < t_size; i++) {
+				var v = 0;
+				var c = t_curr + i;
+				if (c >= t_size) {
+					c -= t_size;
+				}
+				v = t[c];
+				ctx.lineTo((x + i) * window.devicePixelRatio, (y + (t_max - v) * v_scale) * window.devicePixelRatio);
+			}
+			ctx.lineTo((x + t_size - 1) * window.devicePixelRatio, (y + (t_max - t_min) * v_scale) * window.devicePixelRatio);
+			ctx.closePath();
+			ctx.fill();
+			ctx.stroke();
+		}
+
+		function findItem(root, names) {
+			for (var i = 0; i < root.Children.length; i++) {
+				var item = root.Children[i];
+				if (Array.isArray(names)) {
+					if (names.includes(item.Text)) {
+						return item;
+					}
+				} else if (item.Text == names) {
+					return item;
+				}
+			}
+			return { Children: [] };
+		}
+
+		function findCPU(data) {
+			var root = data.Children[0];
+			for (var i = 0; i < root.Children.length; i++) {
+				var item = root.Children[i];
+				if (item.Text.indexOf("Core") > 0 ||
+					item.Text.indexOf("Pentium") > 0 ||
+					item.Text.indexOf("Celeron") > 0 ||
+					item.Text.indexOf("Xeon") > 0 ||
+					item.Text.indexOf("Athlon") > 0 ||
+					item.Text.indexOf("Sempron") > 0 ||
+					item.Text.indexOf("Phenom") > 0 ||
+					item.Text.indexOf("Ryzen") > 0 ||
+					item.Text.indexOf("EPYC") > 0) {
+					return item;
+				}
+			}
+			return { Children: [] };
+		}
+
+		function findGPU(data) {
+			var root = data.Children[0];
+			for (var i = 0; i < root.Children.length; i++) {
+				var item = root.Children[i];
+				if (item.Text.indexOf("GeForce") > 0 ||
+					item.Text.indexOf("Radeon") > 0 ||
+					item.Text.indexOf("Quadro") > 0 ||
+					item.Text.indexOf("Fire") > 0) {
+					return item;
+				}
+			}
+			return { Children: [] };
+		}
+
+		function renderDash(attr) {
+			var throttle = (attr.cpu.voltage < 0);
+			var dbg = "<div float='left' class='cpu'>"
+			if (throttle) {
+				dbg += "<div class='throttle' style='position:absolute;left:310px;top:24;'><i class='fa fa-leaf'></i></div>"
+			}
+			dbg += "CPU:&nbsp;" + attr.cpu.load + "<span class='unit'>%</span>";
+			//dbg += "&nbsp;" + (attr.cpu.clock * 0.001).toFixed(1) + "<span class='unit'>GHz</span>";
+			dbg += "<br><span class='temperature'>" + attr.cpu.temperature.toFixed(1) + "</span><span class='tsign'>&deg;C</span>";
+			var volt = Math.abs(attr.cpu.voltage).toFixed(3) + "<span class='unit'>V</span>";
+			//if (throttle) {
+			//	volt = "<span style='color:#fc0'>" + volt + "</span>";
+			//}
+			dbg += "<br>&nbsp;" + volt + "&nbsp;&nbsp;" + attr.cpu.power + "<span class='unit'>W</span>";
+			dbg += "</div>";
+
+			dbg += "<div float='right' class='gpu'>";
+			dbg += "GPU: ";
+			var gpuClk = (attr.gpu.clock < 1000) ?
+				attr.gpu.clock + "<span class='unit'>Mhz</span>" :
+				(attr.gpu.clock * 0.001).toFixed(1) + "<span class='unit'>GHz</span>";
+
+			dbg += attr.gpu.load + "<span class='unit'>%</span>";//&nbsp;" + gpuClk;
+			if (attr.gpu.fan > 0) {
+				dbg += "&nbsp;" + attr.gpu.fan + "<span class='unit'>RPM</span>";
+			}
+			dbg += "<br><span class='temperature'>" + attr.gpu.hotspot.toFixed(1) + "</span><span class='tsign'>&deg;C</span>";
+			dbg += "<br>&nbsp;" + attr.gpu.voltage.toFixed(3) + "<span class='unit'>V</span>" + "&nbsp;&nbsp;" + attr.gpu.power + "<span class='unit'>W</span>";
+			dbg += "</div>";
+
+			dbg += "<div class='fans'><table><tr>";
+			var fanCount = 0;
+			for (var i = 0; i < attr.fans.length; i++) {
+				var fan = attr.fans[i];
+				if (fan.value > 0) {
+					fanCount++;
+				}
+			}
+			for (var i = 0; i < fanIndex.length; i++) {
+				var fan = fanIndex[i] < attr.fans.length ? attr.fans[fanIndex[i]] : { value: 0 };
+				if (fan.value > 0) {
+					var color = "";
+					if (fan.value >= 1200) {
+						color = " style='color:#FF4000;'";
+					} else if (fan.value >= 800) {
+						color = " style='color:orange;'";
+					}
+					dbg += "<td class='fan' " + color + ">" + (Math.round(fan.value / 10.0) * 10);
+					if (fanCount < 5) {
+						dbg += "<span class='unit'>RPM</span>";
+					}
+					dbg += "</td>";
+				}
+			}
+			dbg += "</tr><tr>";
+			for (var i = 0; i < fanIndex.length; i++) {
+				var fan = fanIndex[i] < attr.fans.length ? attr.fans[fanIndex[i]] : { value: 0 };
+				if (fan.value > 0) {
+					dbg += "<td class='fanname'>" + fan.name + "</td>";
+				}
+			}
+			dbg += "</tr></table></div>";
+			return dbg;
+		}
+
+		function renderDateWeather() {
+			var date = new Date();
+			var hour = date.getHours();
+			hour = (hour != 12 ? (hour % 12) : hour);
+			var m = date.getMinutes();
+			var strdate = DayOfWeek[date.getDay()] + " " + date.getDate() + " " + Month[date.getMonth()] + " " + date.getFullYear();
+			var strtime = hour + ":" + (m < 10 ? "0" + m : m) + " " + ((date.getHours() >= 12) ? "PM" : "AM");
+			var dbg = "<div class='date'>" + strdate + "</div>";
+			dbg += "<div class='time'>" + ((hour < 10) ? "&nbsp;" : "") + strtime + "</div>";
+			dbg += "<div class='weather' id='weather'>" + weather + "</div>";
+			dbg += "<div class='footer'></div>";
+
+			document.getElementById("time").innerHTML = strtime;
+			document.getElementById("date").innerHTML = strdate;
+
+			return dbg;
+		}
+
+		function getWeather() {
+			var query = "http://api.openweathermap.org/data/2.5/weather?q=" + city + "&units=metric&appid=" + key;
+			try {
+				var xmlhttp = new XMLHttpRequest();
+				xmlhttp.timeout = 3000;
+				xmlhttp.onload = function (e) {
+					var data = JSON.parse(xmlhttp.responseText);
+					weather = "<i class='wi wi-owm-" + data.weather[0].icon + "'></i>" + " " + parseInt(data.main.temp) + "&deg;C";
+					var dom = document.getElementById("weather");
+					if (dom) {
+						dom.innerHTML = weather;
+					}
+					document.getElementById("weather2").innerHTML = weather;
+				}
+				xmlhttp.open("GET", query);
+				xmlhttp.send();
+			}
+			catch (e) {
+			}
+			setTimeout(getWeather, 1000 * 60);
+		}
+
+		function load() {
+			var canvas = document.getElementById("canvas");
+			canvas.width = 960 * window.devicePixelRatio;
+			canvas.height = 500 * window.devicePixelRatio;
+			fetch();
+			getWeather();
+			renderDateWeather();
+			document.ontouchend = document.onclick = function () {
+				if (canvas.style.display !== "none") {
+					canvas.style.display = "none";
+				} else {
+					canvas.style.display = "block";
+				}
+			}
+		}
+
+	</script>
+</head>
+<body onload="load()">
+	<div class="error" id="error">
+		<div id="time"></div>
+		<div id="date"></div>
+		<div id="weather2"></div>
+		<div id="energy"></div>
+	</div>
+	<div class="dot" id="dot"></div>
+	<div class="container" id="container"></div>
+	<div id="graph">
+		<canvas id="canvas"></canvas>
+	</div>
+</body>
+</html>

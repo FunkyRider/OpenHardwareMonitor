@@ -21,7 +21,8 @@ namespace OpenHardwareMonitor.GUI
         private LinearAxis sensorAxis;
 
         private readonly ISensor control;
-        private readonly ISensor sensor;
+        private ISensor sensor;
+        private ISensor loadSensor;
 
         private float MinimumSensor;
         private float MaximumSensor;
@@ -31,10 +32,11 @@ namespace OpenHardwareMonitor.GUI
         private string controlTypename = "X";
         private string sensorTypename = "Y";
 
-        public SensorControlForm(ISensor control, ISensor sensor, List<ISoftwareCurvePoint> points, IFanStopStartValues stopStart)
+        public SensorControlForm(ISensor control, ISensor sensor, ISensor loadSensor, List<ISoftwareCurvePoint> points, IFanStopStartValues stopStart)
         {
             this.control = control;
             this.sensor = sensor;
+            this.loadSensor = loadSensor;
 
             this.InitializeComponent();
 
@@ -364,7 +366,7 @@ namespace OpenHardwareMonitor.GUI
               StopTemp = stop,
               StartTemp = start
             };
-            control.Control.SetSoftwareCurve(softwareCurvePoints, sensor, stopStart);
+            control.Control.SetSoftwareCurve(softwareCurvePoints, sensor, loadSensor, stopStart);
             Close();
         }
 

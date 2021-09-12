@@ -120,6 +120,13 @@ namespace OpenHardwareMonitor.Hardware {
       ControlMode = ControlMode.Default;
     }
 
+    // Set control to 100% for sec (Value range: 0 - 60)
+    public void SetMaxSpeed(int sec) {
+      if (softwareCurve != null) {
+        softwareCurve.SetMaxSpeed(sec);
+      }
+    }
+
     public float MinSoftwareValue {
       get {
         return minSoftwareValue;
@@ -140,13 +147,16 @@ namespace OpenHardwareMonitor.Hardware {
     internal event ControlEventHandler ControlModeChanged;
     internal event ControlEventHandler SoftwareControlValueChanged;
     string sensorIdentifier;
+    string loadSensorIdentifier;
+    ISensor loadSensor;
     bool nonSoftwareCurve;
-    public void SetSoftwareCurve(List<ISoftwareCurvePoint> points, ISensor sensor, IFanStopStartValues stopStart) {
+    public void SetSoftwareCurve(List<ISoftwareCurvePoint> points, ISensor sensor, ISensor loadSensor, IFanStopStartValues stopStart) {
       sensorIdentifier = null;
       nonSoftwareCurve = false;
+      this.loadSensor = loadSensor;
 
       ControlMode = ControlMode.SoftwareCurve;
-      var softwareCurve = new SoftwareCurve(points, sensor, stopStart);
+      var softwareCurve = new SoftwareCurve(points, sensor, loadSensor, stopStart);
       AttachSoftwareCurve(softwareCurve);
 
       this.settings.SetValue(new Identifier(identifier,
@@ -168,7 +178,8 @@ namespace OpenHardwareMonitor.Hardware {
       if (sensorIdentifier == null)
         if (!SoftwareCurve.TryParse(settings.GetValue(
             new Identifier(identifier, "curveValue").ToString(), ""),
-            out sensorIdentifier)) {
+            out sensorIdentifier,
+            out loadSensorIdentifier)) {
           nonSoftwareCurve = true;
           return;
         }
@@ -189,10 +200,11 @@ namespace OpenHardwareMonitor.Hardware {
     }
 
     private void SensorAdded(ISensor sensor) {
-      if (softwareCurve != null)
-        return;
-
-      if (sensor.Identifier.ToString() == sensorIdentifier) {
+      string sensorId = sensor.Identifier.ToString();
+      //Debug.WriteLine("Sensor added: " + sensorId);
+      if (sensorId == sensorIdentifier) {
+        if (softwareCurve != null)
+          return;
         var valueString = settings.GetValue(new Identifier(identifier, "curveValue").ToString(), "");
         List<ISoftwareCurvePoint> points;
         if (!SoftwareCurve.TryParse(valueString, out points)) {
@@ -204,10 +216,18 @@ namespace OpenHardwareMonitor.Hardware {
           return;
         }
 
-        this.softwareCurve = new SoftwareCurve(points, sensor, stopStart);
+        this.softwareCurve = new SoftwareCurve(points, sensor, loadSensor, stopStart);
+        if (loadSensor != null) {
+          this.softwareCurve.SetLoadSensor(loadSensor);
+        }
         Debug.WriteLine("hardware added software curve created");
         if (mode == ControlMode.SoftwareCurve)
           AttachSoftwareCurve(softwareCurve);
+      } else if (sensorId == loadSensorIdentifier) {
+        loadSensor = sensor;
+        if (this.softwareCurve != null) {
+          this.softwareCurve.SetLoadSensor(sensor);
+        }
       }
     }
 
@@ -269,7 +289,7 @@ namespace OpenHardwareMonitor.Hardware {
 
     private void HandleSoftwareCurveValueChange(SoftwareCurve softwareCurve) {
       this.softwareCurveValue = softwareCurve.Value;
-      Debug.WriteLine("setting value from software curve: " + softwareCurve.Value);
+      Debug.WriteLine("setting value from software curve: " + softwareCurve.Sensor.Name + " -> " + softwareCurve.Value);
       this.SoftwareControlValueChanged(this);
     }
 
@@ -289,6 +309,8 @@ namespace OpenHardwareMonitor.Hardware {
     public readonly List<ISoftwareCurvePoint> Points;
     public readonly IFanStopStartValues StopStart;
     public readonly ISensor Sensor;
+    public ISensor LoadSensor;
+    private int maxSpeedCountDown;
 
     internal static bool TryParse(string settings, out List<ISoftwareCurvePoint> points) {
       points = new List<ISoftwareCurvePoint>();
@@ -344,8 +366,9 @@ namespace OpenHardwareMonitor.Hardware {
       return true;
     }
 
-    internal static bool TryParse(string settings, out string sensorIdentifier) {
+    internal static bool TryParse(string settings, out string sensorIdentifier, out string loadSensorIdentifier) {
       sensorIdentifier = null;
+      loadSensorIdentifier = null;
 
       if (settings.Length < 1)
         return false;
@@ -354,7 +377,10 @@ namespace OpenHardwareMonitor.Hardware {
       if (split.Length < 1)
         return false;
 
-      sensorIdentifier = split[split.Length - 1];
+      string[] sensors = split[split.Length - 1].Split(',');
+
+      sensorIdentifier = sensors[0];
+      loadSensorIdentifier = sensors.Length > 1 ? sensors[1] : null;
 
       return !string.IsNullOrEmpty(sensorIdentifier);
     }
@@ -370,13 +396,13 @@ namespace OpenHardwareMonitor.Hardware {
       return null;
     }
 
-    internal SoftwareCurve(List<ISoftwareCurvePoint> points, ISensor sensor, IFanStopStartValues stopStart) {
+    internal SoftwareCurve(List<ISoftwareCurvePoint> points, ISensor sensor, ISensor loadSensor, IFanStopStartValues stopStart) {
       this.Points = points;
       this.Sensor = sensor;
+      this.LoadSensor = loadSensor;
       this.StopStart = stopStart;
     }
 
-    private Timer timer;
     private float targetValue;
     private float stableValue;
     private int stableCount;
@@ -384,27 +410,55 @@ namespace OpenHardwareMonitor.Hardware {
     private byte previousNoValue;
     // fanStatus: 0 - Stopped, 1 - Running, -1 - Indeterminate
     private int fanStatus;
+    private bool started = false;
+
     internal float Value { get; private set; }
     internal void Start() {
-      if (timer == null)
-        timer = new Timer();
-      else if (timer.Enabled)
-        return;
-
-      fanStatus = -1;
-      stableValue = -1000.0f;
-      stableCount = 0;
-      previousNoValue = 0;
-      previousSensorValue = -1000.0f;
-      timer.Elapsed += Tick;
-      timer.Interval = 1000;
-      timer.Start();
+      if (!started) {
+        fanStatus = -1;
+        stableValue = -1000.0f;
+        stableCount = 0;
+        previousNoValue = 0;
+        previousSensorValue = -1000.0f;
+        maxSpeedCountDown = 0;
+        started = true;
+        ControlTimer.Instance.addHandler(Tick);
+      }
     }
+
+    public void SetLoadSensor(ISensor sensor) {
+      this.LoadSensor = sensor;
+    }
+
+    // Set control to 100% for sec (Value range: 0 - 60)
+    public void SetMaxSpeed(int sec) {
+      if (sec < 0) {
+        sec = 0;
+      } else if (sec > 60) {
+        sec = 60;
+      }
+      maxSpeedCountDown = sec;
+    }
+
     private void Tick(object s, ElapsedEventArgs e) {
+      bool fanStateChanged = false;
+      bool fanRampDown = false;
+
+      if (maxSpeedCountDown > 0) {
+        maxSpeedCountDown--;
+        if (Value != 100) {
+          Value = 100;
+          fanStateChanged = true;
+          SoftwareCurveValueChanged(this);
+        }
+        if (maxSpeedCountDown == 0) {
+          fanRampDown = true;
+        } else {
+          return;
+        }
+      }
       if (Sensor != null && Sensor.AverageValue.HasValue) {
         float sensorValue = Sensor.AverageValue.Value;
-        bool fanStateChanged = false;
-
         if (stableValue == sensorValue && stableCount < 10) {
           stableCount++;
         } else {
@@ -431,12 +485,16 @@ namespace OpenHardwareMonitor.Hardware {
         }
 
         if (Value != targetValue || fanStateChanged) {
-          if (Value - targetValue > 50) {
+          if (fanRampDown) {
+            Value = targetValue;
+          } else if (LoadSensor != null && Value - targetValue > 1 && LoadSensor.Value > 20) {
+            Value -= 0.1f;
+          } else if (Value - targetValue > 50) {
             Value -= 5;
           } else if (Value - targetValue > 10) {
             Value -= 2;
           } else if (Value - targetValue > 1) {
-            Value--;
+            Value -= 0.5f;
           } else {
             Value = targetValue;
           }
@@ -475,15 +533,13 @@ namespace OpenHardwareMonitor.Hardware {
       return -1;
     }
     internal void Stop() {
-      if (timer != null) {
-        timer.Stop();
-        timer.Elapsed -= Tick;
+      if (started) {
+        ControlTimer.Instance.removeHandler(Tick);
+        started = false;
       }
     }
     internal void Dispose() {
       Stop();
-      if (timer != null)
-        timer.Dispose();
     }
     public override string ToString() {
       StringBuilder builder = new StringBuilder();
@@ -496,14 +552,18 @@ namespace OpenHardwareMonitor.Hardware {
 
       // Fan control curve temp/pwm points
       foreach (var point in Points) {
-        builder.Append(point.SensorValue.ToString(CultureInfo.InvariantCulture));
+        builder.Append(Math.Round(point.SensorValue, 1).ToString(CultureInfo.InvariantCulture));
         builder.Append(':');
-        builder.Append(point.ControlValue.ToString(CultureInfo.InvariantCulture));
+        builder.Append(Math.Round(point.ControlValue, 1).ToString(CultureInfo.InvariantCulture));
         builder.Append(';');
       }
 
       // Sensor source
       builder.Append(Sensor.Identifier.ToString());
+      if (LoadSensor != null) {
+        builder.Append(',');
+        builder.Append(LoadSensor.Identifier.ToString());
+      }
 
       return builder.ToString();
     }

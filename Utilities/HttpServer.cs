@@ -13,6 +13,7 @@ using System;
 using System.Drawing;
 using System.Drawing.Imaging;
 using System.IO;
+using System.IO.Compression;
 using System.Net;
 using System.Reflection;
 using System.Text;
@@ -117,7 +118,11 @@ namespace OpenHardwareMonitor.Utilities {
 
       var requestedFile = request.RawUrl.Substring(1);
       if (requestedFile == "data.json") {
-        SendJSON(context.Response);
+        SendJSON(context.Response, false);
+        return;
+      }
+      if (requestedFile == "data_simp.json") {
+        SendJSON(context.Response, true);
         return;
       }
 
@@ -206,27 +211,33 @@ namespace OpenHardwareMonitor.Utilities {
       response.Close();
     }
 
-    private void SendJSON(HttpListenerResponse response) {
+    private void SendJSON(HttpListenerResponse response, Boolean simple) {
 
-      string JSON = "{\"id\": 0, \"Text\": \"Sensor\", \"Children\": [";
+      string JSON = "{\"id\":0,\"Text\":\"Sensor\",\"Children\":[";
       nodeCount = 1;
-      JSON += GenerateJSON(root);
+      JSON += GenerateJSON(root, simple);
       JSON += "]";
-      JSON += ", \"Min\": \"Min\"";
-      JSON += ", \"Value\": \"Value\"";
-      JSON += ", \"Max\": \"Max\"";
-      JSON += ", \"ImageURL\": \"\"";
+      if (!simple) JSON += ",\"Min\":\"Min\"";
+      if (!simple) JSON += ",\"Value\":\"Value\"";
+      if (!simple) JSON += ",\"Max\":\"Max\"";
+      if (!simple) JSON += ",\"ImageURL\":\"\"";
       JSON += "}";
 
       var responseContent = JSON;
       byte[] buffer = Encoding.UTF8.GetBytes(responseContent);
 
       response.AddHeader("Cache-Control", "no-cache");
-
-      response.ContentLength64 = buffer.Length;
+      response.AddHeader("Access-Control-Allow-Origin", "*");
       response.ContentType = "application/json";
 
       try {
+        using (var ms = new MemoryStream()) {
+          using (var zip = new GZipStream(ms, CompressionMode.Compress, true))
+            zip.Write(buffer, 0, buffer.Length);
+          buffer = ms.ToArray();
+        }
+        response.AddHeader("Content-Encoding", "gzip");
+        response.ContentLength64 = buffer.Length;
         Stream output = response.OutputStream;
         output.Write(buffer, 0, buffer.Length);
         output.Close();
@@ -236,39 +247,50 @@ namespace OpenHardwareMonitor.Utilities {
       response.Close();
     }
 
-    private string GenerateJSON(Node n) {
-      string JSON = "{\"id\": " + nodeCount + ", \"Text\": \"" + n.Text 
-        + "\", \"Children\": [";
+    private string GenerateJSON(Node n, Boolean simple) {
+      if (n.Text.IndexOf("#") >= 0) {
+        return null;
+      }
+      string JSON = "{\"id\":" + nodeCount + ",\"Text\":\"" + n.Text
+        + "\"";
       nodeCount++;
 
-      foreach (Node child in n.Nodes)
-        JSON += GenerateJSON(child) + ", ";
-      if (JSON.EndsWith(", "))
-        JSON = JSON.Remove(JSON.LastIndexOf(","));
-      JSON += "]";
+      if (n.Nodes.Count > 0) {
+        JSON += ",\"Children\":[";
+        foreach (Node child in n.Nodes) {
+          string chJSON = GenerateJSON(child, simple);
+          if (chJSON != null) {
+            JSON += chJSON + ",";
+          }
+        }
+        if (JSON.EndsWith(","))
+          JSON = JSON.Remove(JSON.LastIndexOf(","));
+        JSON += "]";
+      }
 
       if (n is SensorNode) {
-        JSON += ", \"Min\": \"" + ((SensorNode)n).Min + "\"";
-        JSON += ", \"Value\": \"" + ((SensorNode)n).Value + "\"";
-        JSON += ", \"Max\": \"" + ((SensorNode)n).Max + "\"";
-        JSON += ", \"ImageURL\": \"images/transparent.png\"";
+        if (!simple) JSON += ",\"Min\":\"" + ((SensorNode)n).Min + "\"";
+        string value = (simple) ? ((SensorNode)n).Value.Split(' ')[0] : ((SensorNode)n).Value;
+        JSON += ",\"Value\":\"" + value + "\"";
+        if (!simple) JSON += ",\"Max\":\"" + ((SensorNode)n).Max + "\"";
+        if (!simple) JSON += ",\"ImageURL\":\"images/transparent.png\"";
       } else if (n is HardwareNode) {
-        JSON += ", \"Min\": \"\"";
-        JSON += ", \"Value\": \"\"";
-        JSON += ", \"Max\": \"\"";
-        JSON += ", \"ImageURL\": \"images_icon/" + 
+        if (!simple) JSON += ",\"Min\":\"\"";
+        if (!simple) JSON += ",\"Value\":\"\"";
+        if (!simple) JSON += ",\"Max\":\"\"";
+        if (!simple) JSON += ",\"ImageURL\":\"images_icon/" + 
           GetHardwareImageFile((HardwareNode)n) + "\"";
       } else if (n is TypeNode) {
-        JSON += ", \"Min\": \"\"";
-        JSON += ", \"Value\": \"\"";
-        JSON += ", \"Max\": \"\"";
-        JSON += ", \"ImageURL\": \"images_icon/" + 
+        if (!simple) JSON += ",\"Min\":\"\"";
+        if (!simple) JSON += ",\"Value\":\"\"";
+        if (!simple) JSON += ",\"Max\":\"\"";
+        if (!simple) JSON += ",\"ImageURL\":\"images_icon/" + 
           GetTypeImageFile((TypeNode)n) + "\"";
       } else {
-        JSON += ", \"Min\": \"\"";
-        JSON += ", \"Value\": \"\"";
-        JSON += ", \"Max\": \"\"";
-        JSON += ", \"ImageURL\": \"images_icon/computer.png\"";
+        if (!simple) JSON += ",\"Min\":\"\"";
+        if (!simple) JSON += ",\"Value\":\"\"";
+        if (!simple) JSON += ",\"Max\":\"\"";
+        if (!simple) JSON += ",\"ImageURL\":\"images_icon/computer.png\"";
       }
 
       JSON += "}";

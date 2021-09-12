@@ -30,12 +30,13 @@ namespace OpenHardwareMonitor.Hardware {
     float SoftwareValue { get; }
 
     void SetDefault();
+    void SetMaxSpeed(int sec);
 
     float MinSoftwareValue { get; }
     float MaxSoftwareValue { get; }
 
     void SetSoftware(float value);
-    void SetSoftwareCurve(List<ISoftwareCurvePoint> points, ISensor sensor, IFanStopStartValues stopStart);
+    void SetSoftwareCurve(List<ISoftwareCurvePoint> points, ISensor sensor, ISensor loadSensor, IFanStopStartValues stopStart);
     SoftwareCurve GetSoftwareCurve();
     void NotifyHardwareAdded(List<IGroup> allhardware);
     void NotifyHardwareRemoved(IHardware hardware);

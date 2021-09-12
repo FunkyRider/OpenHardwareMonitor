@@ -381,10 +381,12 @@ namespace OpenHardwareMonitor.GUI {
 
       showPlot.Changed += delegate(object sender, EventArgs e) {
         if (plotLocation.Value == 0) {
-          if (showPlot.Value && this.Visible)
+          if (showPlot.Value && this.Visible) {
             plotForm.Show();
-          else
+            plotPanel.InvalidatePlot();
+          } else {
             plotForm.Hide();
+          }
         } else {
           splitContainer.Panel2Collapsed = !showPlot.Value;
         }
@@ -584,14 +586,15 @@ namespace OpenHardwareMonitor.GUI {
     private void timer_Tick(object sender, EventArgs e) {
       computer.Accept(updateVisitor);
       treeView.Invalidate();
-      plotPanel.InvalidatePlot();
+      if (plotForm.Visible) {
+        plotPanel.InvalidatePlot();
+      }
       systemTray.Redraw();
       if (gadget != null)
         gadget.Redraw();
 
       if (wmiProvider != null)
         wmiProvider.Update();
-
 
       if (logSensors != null && logSensors.Value && delayCount >= 4)
         logger.Log();
@@ -806,7 +809,7 @@ namespace OpenHardwareMonitor.GUI {
                     SensorNode curveselect_node = curveselect_info.Node.Tag as SensorNode;
                     if (curveselect_node != null && curveselect_node.Sensor != null) {
                       this.treeView.Click -= selectorListener;
-                      new SensorControlForm(node.Sensor, curveselect_node.Sensor, null, null).ShowDialog();
+                      new SensorControlForm(node.Sensor, curveselect_node.Sensor, null, null, null).ShowDialog();
                       return;
                     }
                   }
@@ -826,7 +829,7 @@ namespace OpenHardwareMonitor.GUI {
               curveItem.MenuItems.Add(editCurveItem);
               editCurveItem.Click += delegate (object obj, EventArgs args)
               {
-                new SensorControlForm(node.Sensor, softwareCurve.Sensor, softwareCurve.Points, softwareCurve.StopStart).ShowDialog();
+                new SensorControlForm(node.Sensor, softwareCurve.Sensor, softwareCurve.LoadSensor, softwareCurve.Points, softwareCurve.StopStart).ShowDialog();
               };
 
               if (control.ActualControlMode != ControlMode.SoftwareCurve) {
@@ -835,7 +838,7 @@ namespace OpenHardwareMonitor.GUI {
                 curveItem.MenuItems.Add(enableCurveItem);
                 enableCurveItem.Click += delegate (object obj, EventArgs args)
                 {
-                  node.Sensor.Control.SetSoftwareCurve(softwareCurve.Points, softwareCurve.Sensor, softwareCurve.StopStart);
+                  node.Sensor.Control.SetSoftwareCurve(softwareCurve.Points, softwareCurve.Sensor, softwareCurve.LoadSensor, softwareCurve.StopStart);
                 };
               }
             }
@@ -992,5 +995,15 @@ namespace OpenHardwareMonitor.GUI {
       get { return server; }
     }
 
+    private void cleanMenuItem_Click(object sender, EventArgs e) {
+      foreach (TreeNodeAdv node in treeView.AllNodes) {
+        SensorNode sensorNode = node.Tag as SensorNode;
+        if (sensorNode != null) {
+          if (sensorNode.Sensor != null && sensorNode.Sensor.Control != null) {
+            sensorNode.Sensor.Control.SetMaxSpeed(13);
+          }
+        }
+      }
+    }
   }
 }

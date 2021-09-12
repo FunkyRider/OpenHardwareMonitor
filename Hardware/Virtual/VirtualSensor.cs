@@ -33,7 +33,9 @@ namespace OpenHardwareMonitor.Hardware.Virtual {
 
     private enum Combiner {
       sum,
-      max
+      max,
+      min,
+      avg
     }
 
     private class BiasScale {
@@ -46,6 +48,7 @@ namespace OpenHardwareMonitor.Hardware.Virtual {
       private List<ISensor> sources;
       private List<String> identifiers;
       private List<BiasScale> biasScales;
+      private float? average;
 
       public VirtualSensorItem(string name, int index, SensorType type, Hardware hardware, ISettings settings)
         : base(name, index, type, hardware, settings) {
@@ -56,6 +59,7 @@ namespace OpenHardwareMonitor.Hardware.Virtual {
         sources = new List<ISensor>();
         identifiers = new List<String>();
         biasScales = new List<BiasScale>();
+        average = new float?();
 
         for (int i = 1; i < data.Length; i++) {
           var id = data[i].Split(',');
@@ -70,21 +74,41 @@ namespace OpenHardwareMonitor.Hardware.Virtual {
 
       public void update() {
         float? value = 0;
-        for (int i = 0; i < sources.Count; i ++) {
-          ISensor s = sources[i];
-          BiasScale bs = biasScales[i];
-          if (s == null) {
-            return;
+        if (combiner == Combiner.avg) {
+          ISensor s = sources[0];
+          BiasScale bs = biasScales[0];
+          if (!average.HasValue) {
+            average = s.Value;
           }
-          float? bsValue = (s.Value + bs.bias) * bs.scale;
-          if (bsValue < 0) {
-            bsValue = 0;
+          if (average.HasValue) {
+            if (bs.bias == 0) {
+              bs.bias = 1.0f;
+            }
+            float weight = 1.0f / bs.bias;
+            average = average * (1.0f - weight) + s.Value * weight;
+            value = average;
           }
-          if (combiner == Combiner.sum) {
-            value += bsValue;
-          } else if (combiner == Combiner.max) {
-            if (value < s.Value) {
-              value = bsValue;
+        } else {
+          for (int i = 0; i < sources.Count; i++) {
+            ISensor s = sources[i];
+            BiasScale bs = biasScales[i];
+            if (s == null) {
+              return;
+            }
+            float? bsValue = (s.Value + bs.bias) * bs.scale;
+            if (bsValue < 0) {
+              bsValue = 0;
+            }
+            if (combiner == Combiner.sum) {
+              value += bsValue;
+            } else if (combiner == Combiner.max) {
+              if (value < bsValue) {
+                value = bsValue;
+              }
+            } else if (combiner == Combiner.min) {
+              if (value > bsValue) {
+                value = bsValue;
+              }
             }
           }
         }
