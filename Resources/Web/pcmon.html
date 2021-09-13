@@ -248,13 +248,12 @@
 		}
 	</style>
 	<script>
-		var key = "2eb3ecfabc2d39c70d66943eae8ea3e4";
+		var key = "";
 		var city = "Auckland";
-		var url = "";//http://192.168.1.13:8085";
-		var fanIndex = [0, 1, 4, 2, 3, 5];
+		var url = "";
 		var DayOfWeek = ["Sun", "Mon", "Tue", "Wed", "Thu", "Fri", "Sat"];
 		var Month = ["Jan", "Feb", "Mar", "Apr", "May", "Jun", "Jul", "Aug", "Sep", "Oct", "Nov", "Dec"];
-		var weather = "---";
+		var weather = "";
 		var defaultAttr = {
 			cpu: { name: "CPU", voltage: "-", temperature: "-", power: "-", fan: "-" },
 			gpu: { name: "GPU", voltage: "-", hotspot: "-", temperature: "-", power: "-", fan: "-" },
@@ -303,6 +302,8 @@
 				}
 			});
 
+			var hotspott = findItem(findItem(dgpu, "Temperatures"), ["GPU Hot Spot", "GPU"]);
+			var gput = findItem(findItem(dgpu, "Temperatures"), ["GPU Core", "GPU"]);
 			var attr = {
 				cpu: {
 					name: dcpu.Text,
@@ -316,18 +317,22 @@
 					name: dgpu.Text,
 					clock: parseInt(findItem(findItem(dgpu, "Clocks"), ["GPU Core", "GPU"]).Value),
 					voltage: parseFloat(findItem(findItem(dgpu, "Voltages"), ["GPU Core", "GPU"]).Value),
-					temperature: parseFloat(findItem(findItem(dgpu, "Temperatures"), ["GPU Core", "GPU"]).Value),
-					hotspot: parseFloat(findItem(findItem(dgpu, "Temperatures"), ["GPU Hot Spot", "GPU"]).Value),
+					temperature: parseFloat(gput.Value),
+					hotspot: parseFloat((hotspott && hotspott.Value) ? hotspott.Value : gput.Value),
 					power: parseInt(findItem(findItem(dgpu, "Powers"), "GPU Total").Value),
 					load: parseInt(findItem(findItem(dgpu, "Load"), "GPU Core").Value),
-					fan: parseInt(findItem(findItem(dgpu, "Fans"), "GPU Fan").Value)
+					fan: parseInt(findItem(findItem(dgpu, "Fans"), ["GPU", "GPU Fan"]).Value)
 				},
 				fans: []
 			};
 
 			var fans = findItem(mb, "Fans").Children;
-			for (var i = 0; i < fans.length - 1; i++) {
+			for (var i = 0; i < fans.length; i++) {
 				attr.fans.push({ name: fans[i].Text, value: parseInt(fans[i].Value) });
+			}
+
+			if (attr.gpu.fan != "NaN") {
+				attr.fans.push({ name: "GPU Fan", value: attr.gpu.fan });
 			}
 
 			document.getElementById("error").style.display = "none";
@@ -360,25 +365,26 @@
 			}
 			var ctx = canvas.getContext("2d");
 			ctx.clearRect(0, 0, canvas.width, canvas.height);
-			drawGraph(ctx, cpu_temp, 0, 0, '#cc0000', '#770000');
-			drawGraph(ctx, gpu_temp, t_size + 20, 0, '#00aa00', '#006600');
+			drawGraph(ctx, cpu_temp, 0, 0, '#cc0000', '#660000', '#cc0000');
+			drawGraph(ctx, gpu_temp, t_size + 20, 0, '#00aa00', '#005500', '#00aa00');
 
 			t_curr++;
 		}
 
-		function drawGraph(ctx, t, x, y, lcolor, fcolor) {
+		function drawGraph(ctx, t, x, y, lcolor, fcolor, gcolor) {
+			var dpr = window.devicePixelRatio;
 			ctx.strokeStyle = lcolor;
 			ctx.fillStyle = fcolor;
-			ctx.lineWidth = 2 * window.devicePixelRatio;
+			ctx.lineWidth = 2 * dpr;
 			ctx.beginPath();
-			ctx.moveTo(x * window.devicePixelRatio, y + (t_max - t_min) * v_scale * window.devicePixelRatio);
-			ctx.lineTo((x + t_size) * window.devicePixelRatio, (y + (t_max - t_min) * v_scale) * window.devicePixelRatio);
+			ctx.moveTo(x * dpr, y + (t_max - t_min) * v_scale * dpr);
+			ctx.lineTo((x + t_size) * dpr, (y + (t_max - t_min) * v_scale) * dpr);
 			ctx.stroke();
 
-			ctx.lineWidth = window.devicePixelRatio;
+			ctx.lineWidth = dpr;
 			ctx.beginPath();
-			ctx.moveTo(x * window.devicePixelRatio, (y + (t_max - t_min) * v_scale) * window.devicePixelRatio);
-			ctx.lineTo(x * window.devicePixelRatio, (y + (t_max - t[t_curr < (t_size - 1) ? t_curr + 1 : 0]) * v_scale) * window.devicePixelRatio);
+			ctx.moveTo(x * dpr, (y + (t_max - t_min) * v_scale) * dpr);
+			ctx.lineTo(x * dpr, (y + (t_max - t[t_curr < (t_size - 1) ? t_curr + 1 : 0]) * v_scale) * dpr);
 			for (var i = 1; i < t_size; i++) {
 				var v = 0;
 				var c = t_curr + i;
@@ -386,12 +392,24 @@
 					c -= t_size;
 				}
 				v = t[c];
-				ctx.lineTo((x + i) * window.devicePixelRatio, (y + (t_max - v) * v_scale) * window.devicePixelRatio);
+				ctx.lineTo((x + i) * dpr, (y + (t_max - v) * v_scale) * dpr);
 			}
-			ctx.lineTo((x + t_size - 1) * window.devicePixelRatio, (y + (t_max - t_min) * v_scale) * window.devicePixelRatio);
+			ctx.lineTo((x + t_size - 1) * dpr, (y + (t_max - t_min) * v_scale) * dpr);
 			ctx.closePath();
 			ctx.fill();
 			ctx.stroke();
+
+			/*if (gcolor) {
+				ctx.strokeStyle = gcolor;
+				ctx.fillStyle = gcolor;
+				ctx.beginPath();
+				ctx.moveTo((x + t_size - 1) * dpr, (y + (t_max - t[t_curr]) * v_scale) * dpr);
+				ctx.lineTo((x + t_size - 1 + 16) * dpr, (y + (t_max - t[t_curr]) * v_scale - 16) * dpr);
+				ctx.lineTo((x + t_size - 1 + 16) * dpr, (y + (t_max - t[t_curr]) * v_scale + 16) * dpr);
+				ctx.closePath();
+				ctx.fill();
+				ctx.stroke();
+			}*/
 		}
 
 		function findItem(root, names) {
@@ -449,12 +467,15 @@
 			}
 			dbg += "CPU:&nbsp;" + attr.cpu.load + "<span class='unit'>%</span>";
 			//dbg += "&nbsp;" + (attr.cpu.clock * 0.001).toFixed(1) + "<span class='unit'>GHz</span>";
-			dbg += "<br><span class='temperature'>" + attr.cpu.temperature.toFixed(1) + "</span><span class='tsign'>&deg;C</span>";
+			dbg += "<br><span class='temperature'>" + Math.round(attr.cpu.temperature).toFixed(1) + "</span><span class='tsign'>&deg;C</span>";
 			var volt = Math.abs(attr.cpu.voltage).toFixed(3) + "<span class='unit'>V</span>";
 			//if (throttle) {
 			//	volt = "<span style='color:#fc0'>" + volt + "</span>";
 			//}
-			dbg += "<br>&nbsp;" + volt + "&nbsp;&nbsp;" + attr.cpu.power + "<span class='unit'>W</span>";
+			if (!isNaN(attr.cpu.voltage))
+				dbg += "<br>&nbsp;" + volt + "&nbsp;&nbsp;";
+			if (!isNaN(attr.cpu.power))
+				dbg += attr.cpu.power + "<span class='unit'>W</span>";
 			dbg += "</div>";
 
 			dbg += "<div float='right' class='gpu'>";
@@ -465,10 +486,14 @@
 
 			dbg += attr.gpu.load + "<span class='unit'>%</span>";//&nbsp;" + gpuClk;
 			if (attr.gpu.fan > 0) {
-				dbg += "&nbsp;" + attr.gpu.fan + "<span class='unit'>RPM</span>";
+				//dbg += "&nbsp;" + attr.gpu.fan + "<span class='unit'>RPM</span>";
 			}
 			dbg += "<br><span class='temperature'>" + attr.gpu.hotspot.toFixed(1) + "</span><span class='tsign'>&deg;C</span>";
-			dbg += "<br>&nbsp;" + attr.gpu.voltage.toFixed(3) + "<span class='unit'>V</span>" + "&nbsp;&nbsp;" + attr.gpu.power + "<span class='unit'>W</span>";
+
+			if (!isNaN(attr.gpu.voltage))
+				dbg += "<br>&nbsp;" + attr.gpu.voltage.toFixed(3) + "<span class='unit'>V</span>&nbsp;&nbsp;";
+			if (!isNaN(attr.gpu.power))
+				dbg += attr.gpu.power + "<span class='unit'>W</span>";
 			dbg += "</div>";
 
 			dbg += "<div class='fans'><table><tr>";
@@ -479,8 +504,8 @@
 					fanCount++;
 				}
 			}
-			for (var i = 0; i < fanIndex.length; i++) {
-				var fan = fanIndex[i] < attr.fans.length ? attr.fans[fanIndex[i]] : { value: 0 };
+			for (var i = 0; i < attr.fans.length; i++) {
+				var fan = attr.fans[i];
 				if (fan.value > 0) {
 					var color = "";
 					if (fan.value >= 1200) {
@@ -496,8 +521,8 @@
 				}
 			}
 			dbg += "</tr><tr>";
-			for (var i = 0; i < fanIndex.length; i++) {
-				var fan = fanIndex[i] < attr.fans.length ? attr.fans[fanIndex[i]] : { value: 0 };
+			for (var i = 0; i < attr.fans.length; i++) {
+				var fan = attr.fans[i];
 				if (fan.value > 0) {
 					dbg += "<td class='fanname'>" + fan.name + "</td>";
 				}
@@ -525,6 +550,9 @@
 		}
 
 		function getWeather() {
+			if (key == null || key === "")
+				return;
+
 			var query = "http://api.openweathermap.org/data/2.5/weather?q=" + city + "&units=metric&appid=" + key;
 			try {
 				var xmlhttp = new XMLHttpRequest();
@@ -550,6 +578,19 @@
 			var canvas = document.getElementById("canvas");
 			canvas.width = 960 * window.devicePixelRatio;
 			canvas.height = 500 * window.devicePixelRatio;
+			var urlParams = new URLSearchParams(window.location.search);
+			if (urlParams.get('pc') != null) {
+				url = "http://" + urlParams.get('pc');
+				if (urlParams.get('port') != null) {
+					url += ":" + urlParams.get('port');
+				}
+			}
+			if (urlParams.get('owmkey') != null) {
+				key = urlParams.get('owmkey');
+				if (urlParams.get('city') != null) {
+					city = urlParams.get('city');
+				}
+			}
 			fetch();
 			getWeather();
 			renderDateWeather();

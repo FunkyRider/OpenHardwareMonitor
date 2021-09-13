@@ -116,7 +116,7 @@ namespace OpenHardwareMonitor.Utilities {
 
       HttpListenerRequest request = context.Request;
 
-      var requestedFile = request.RawUrl.Substring(1);
+      var requestedFile = request.Url.AbsolutePath.Substring(1);
       if (requestedFile == "data.json") {
         SendJSON(context.Response, false);
         return;

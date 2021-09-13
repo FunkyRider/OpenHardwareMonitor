@@ -115,8 +115,8 @@ namespace OpenHardwareMonitor.Hardware {
       if (name == "CPU VCore") {
         int i = parameterDescriptions.Length;
         parameters[i++] = new Parameter(new ParameterDescription("Tau", "Continous boosting time", 30.0f), this, settings);
-        parameters[i++] = new Parameter(new ParameterDescription("VBoost", "Boost voltage threshold", 1.28f), this, settings);
-        parameters[i++] = new Parameter(new ParameterDescription("VRest", "Rest voltage threshold", 1.08f), this, settings);
+        parameters[i++] = new Parameter(new ParameterDescription("VBoost", "Boost voltage threshold", 1.3f), this, settings);
+        parameters[i++] = new Parameter(new ParameterDescription("VRest", "Rest voltage threshold", 1.06f), this, settings);
       }
       this.parameters = parameters;
     }
