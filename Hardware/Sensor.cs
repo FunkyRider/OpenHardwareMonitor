@@ -38,6 +38,7 @@ namespace OpenHardwareMonitor.Hardware {
     private readonly ISettings settings;
     private IControl control;
     private bool throttle;
+    private int perfLevel;
     
     private float sum;
     private int count;
@@ -65,6 +66,8 @@ namespace OpenHardwareMonitor.Hardware {
 
     static readonly Guid GUID_PROCESSOR_SETTINGS_SUBGROUP = new Guid("54533251-82be-4824-96c1-47b60b740d00");
     static readonly Guid GUID_BOOSTMODE= new Guid("be337238-0d82-4146-a960-4f3749d470c7");
+    static readonly Guid GUID_PROCESSOR_THROTTLE_MAXIMUM = new Guid("BC5038F7-23E0-4960-96DA-33ABAF5935EC");
+    static readonly Guid GUID_PROCESSOR_THROTTLE_MINIMUM = new Guid("893DEE8E-2BEF-41E0-89C6-B55D0929964C");
 
     public Sensor(string name, int index, SensorType sensorType,
       Hardware hardware, ISettings settings) : 
@@ -85,14 +88,17 @@ namespace OpenHardwareMonitor.Hardware {
       this.sensorType = sensorType;
       this.hardware = hardware;
       this.throttle = false;
-      int boostParams = 0;
+      this.perfLevel = 100;
+      int auxParams = 0;
       if (name == "CPU VCore") {
         SetProcessorBoostMode(2);
-        boostParams = 3;
+        auxParams = 3;
+      } else if (name == "CPU Package" && sensorType == SensorType.Power) {
+        auxParams = 1;
       }
 
       Parameter[] parameters = new Parameter[parameterDescriptions == null ?
-        0 : parameterDescriptions.Length + boostParams];
+        auxParams : parameterDescriptions.Length + auxParams];
       if (parameterDescriptions != null) {
         for (int i = 0; i < parameterDescriptions.Length; i++)
           parameters[i] = new Parameter(parameterDescriptions[i], this, settings);
@@ -112,11 +118,13 @@ namespace OpenHardwareMonitor.Hardware {
         }
       };
 
+      int pcount = (parameterDescriptions != null) ? parameterDescriptions.Length : 0;
       if (name == "CPU VCore") {
-        int i = parameterDescriptions.Length;
-        parameters[i++] = new Parameter(new ParameterDescription("Tau", "Continous boosting time", 30.0f), this, settings);
-        parameters[i++] = new Parameter(new ParameterDescription("VBoost", "Boost voltage threshold", 1.3f), this, settings);
-        parameters[i++] = new Parameter(new ParameterDescription("VRest", "Rest voltage threshold", 1.06f), this, settings);
+        parameters[pcount++] = new Parameter(new ParameterDescription("Tau", "Continous boosting time", 0.0f), this, settings);
+        parameters[pcount++] = new Parameter(new ParameterDescription("VBoost", "Boost voltage threshold", 1.3f), this, settings);
+        parameters[pcount++] = new Parameter(new ParameterDescription("VRest", "Rest voltage threshold", 1.06f), this, settings);
+      } else if (name == "CPU Package" && sensorType == SensorType.Power) {
+        parameters[pcount++] = new Parameter(new ParameterDescription("PPT", "CPU Package Power target", 0.0f), this, settings);
       }
       this.parameters = parameters;
     }
@@ -313,6 +321,29 @@ namespace OpenHardwareMonitor.Hardware {
       }
     }
 
+    private void PPT(float power) {
+      var ppt = (int)readParameter("PPT");
+      if (ppt == 0) {
+        if (perfLevel < 100) {
+          perfLevel = 100;
+          SetProcessorPerformanceLevel(99, 100);
+        }
+        return;
+      }
+
+      if (power > ppt * 1.05) {
+        if (perfLevel > 5) {
+          perfLevel -= 5;
+          SetProcessorPerformanceLevel(perfLevel, perfLevel);
+        }
+      } else if (power < ppt * 0.95) {
+        if (perfLevel < 100) {
+          perfLevel += 5;
+          SetProcessorPerformanceLevel(perfLevel == 100 ? 99 : perfLevel, perfLevel);
+        }
+      }
+    }
+
     private void SetProcessorBoostMode(int mode) {
       IntPtr pActiveSchemeGuid;
       var hr = PowerGetActiveScheme(IntPtr.Zero, out pActiveSchemeGuid);
@@ -328,6 +359,29 @@ namespace OpenHardwareMonitor.Hardware {
       PowerSetActiveScheme(IntPtr.Zero, activeSchemeGuid); //This is necessary to apply the current scheme.
     }
 
+    private void SetProcessorPerformanceLevel(int min, int max) {
+      IntPtr pActiveSchemeGuid;
+      var hr = PowerGetActiveScheme(IntPtr.Zero, out pActiveSchemeGuid);
+      Guid activeSchemeGuid = (Guid)Marshal.PtrToStructure(pActiveSchemeGuid, typeof(Guid));
+
+      hr = PowerWriteACValueIndex(
+           IntPtr.Zero,
+           activeSchemeGuid,
+           GUID_PROCESSOR_SETTINGS_SUBGROUP,
+           GUID_PROCESSOR_THROTTLE_MAXIMUM,
+           max);
+
+      hr = PowerWriteACValueIndex(
+           IntPtr.Zero,
+           activeSchemeGuid,
+           GUID_PROCESSOR_SETTINGS_SUBGROUP,
+           GUID_PROCESSOR_THROTTLE_MINIMUM,
+           min);
+
+      PowerSetActiveScheme(IntPtr.Zero, activeSchemeGuid); //This is necessary to apply the current scheme.
+    }
+
+
     public float? Value {
       get { 
         return throttle ? -currentValue: currentValue;
@@ -335,6 +389,8 @@ namespace OpenHardwareMonitor.Hardware {
       set {
         if (this.Name == "CPU VCore") {
           this.VCoreProtect(value.HasValue ? value.Value : 0);
+        } else if (this.Name == "CPU Package" && this.sensorType == SensorType.Power) {
+          this.PPT(value.HasValue ? value.Value : 0);
         }
 
         DateTime now = DateTime.UtcNow;

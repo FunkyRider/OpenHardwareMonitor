@@ -251,6 +251,7 @@
 		var key = "";
 		var city = "Auckland";
 		var url = "";
+		var fans = [];
 		var DayOfWeek = ["Sun", "Mon", "Tue", "Wed", "Thu", "Fri", "Sat"];
 		var Month = ["Jan", "Feb", "Mar", "Apr", "May", "Jun", "Jul", "Aug", "Sep", "Oct", "Nov", "Dec"];
 		var weather = "";
@@ -365,8 +366,8 @@
 			}
 			var ctx = canvas.getContext("2d");
 			ctx.clearRect(0, 0, canvas.width, canvas.height);
-			drawGraph(ctx, cpu_temp, 0, 0, '#cc0000', '#660000', '#cc0000');
-			drawGraph(ctx, gpu_temp, t_size + 20, 0, '#00aa00', '#005500', '#00aa00');
+			drawGraph(ctx, cpu_temp, 0, 0, '#dd0000', '#660000', '#ff0000');
+			drawGraph(ctx, gpu_temp, t_size + 20, 0, '#00aa00', '#005500', '#00dd00');
 
 			t_curr++;
 		}
@@ -399,17 +400,19 @@
 			ctx.fill();
 			ctx.stroke();
 
-			/*if (gcolor) {
+			if (gcolor) {
 				ctx.strokeStyle = gcolor;
 				ctx.fillStyle = gcolor;
 				ctx.beginPath();
-				ctx.moveTo((x + t_size - 1) * dpr, (y + (t_max - t[t_curr]) * v_scale) * dpr);
+				/*ctx.moveTo((x + t_size - 1) * dpr, (y + (t_max - t[t_curr]) * v_scale) * dpr);
 				ctx.lineTo((x + t_size - 1 + 16) * dpr, (y + (t_max - t[t_curr]) * v_scale - 16) * dpr);
-				ctx.lineTo((x + t_size - 1 + 16) * dpr, (y + (t_max - t[t_curr]) * v_scale + 16) * dpr);
-				ctx.closePath();
+				ctx.lineTo((x + t_size - 1 + 16) * dpr, (y + (t_max - t[t_curr]) * v_scale + 16) * dpr);*/
+				//ctx.closePath();
+				ctx.rect((x + t_size - 1) * dpr, (y + (t_max - t[t_curr]) * v_scale) * dpr, dpr, (t[t_curr] - t_min) * v_scale * dpr);
+				ctx.stroke();
 				ctx.fill();
 				ctx.stroke();
-			}*/
+			}
 		}
 
 		function findItem(root, names) {
@@ -498,14 +501,16 @@
 
 			dbg += "<div class='fans'><table><tr>";
 			var fanCount = 0;
-			for (var i = 0; i < attr.fans.length; i++) {
-				var fan = attr.fans[i];
+			var fanL = (fans.length > 0) ? fans.length : attr.fans.length;
+
+			for (var i = 0; i < fanL; i++) {
+				var fan = (fans.length > 0) ? attr.fans[fans[i]] : attr.fans[i];
 				if (fan.value > 0) {
 					fanCount++;
 				}
 			}
-			for (var i = 0; i < attr.fans.length; i++) {
-				var fan = attr.fans[i];
+			for (var i = 0; i < fanL; i++) {
+				var fan = (fans.length > 0) ? attr.fans[fans[i]] : attr.fans[i];
 				if (fan.value > 0) {
 					var color = "";
 					if (fan.value >= 1200) {
@@ -521,8 +526,8 @@
 				}
 			}
 			dbg += "</tr><tr>";
-			for (var i = 0; i < attr.fans.length; i++) {
-				var fan = attr.fans[i];
+			for (var i = 0; i < fanL; i++) {
+				var fan = (fans.length > 0) ? attr.fans[fans[i]] : attr.fans[i];
 				if (fan.value > 0) {
 					dbg += "<td class='fanname'>" + fan.name + "</td>";
 				}
@@ -590,6 +595,9 @@
 				if (urlParams.get('city') != null) {
 					city = urlParams.get('city');
 				}
+			}
+			if (urlParams.get("fans") != null) {
+				fans = urlParams.get("fans").split(",");
 			}
 			fetch();
 			getWeather();
