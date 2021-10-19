@@ -220,6 +220,12 @@ namespace OpenHardwareMonitor.Hardware {
         if (loadSensor != null) {
           this.softwareCurve.SetLoadSensor(loadSensor);
         }
+
+        int stepSpeed = 0;
+        if (int.TryParse(loadSensorIdentifier, out stepSpeed)) {
+          this.softwareCurve.setStepSpeed(stepSpeed);
+        }
+
         Debug.WriteLine("hardware added software curve created");
         if (mode == ControlMode.SoftwareCurve)
           AttachSoftwareCurve(softwareCurve);
@@ -271,7 +277,7 @@ namespace OpenHardwareMonitor.Hardware {
       this.softwareCurve.SoftwareCurveAbort += this.HandleSoftwareCurveAbort;
       this.softwareCurve.Start();
       this.softwareCurveAttached = true;
-      Debug.WriteLine("attaching softwarecurve");
+      Debug.WriteLine("attaching software curve - " + newCurve);
     }
 
     private void DetachSoftwareCurve() {
@@ -401,6 +407,9 @@ namespace OpenHardwareMonitor.Hardware {
       this.Sensor = sensor;
       this.LoadSensor = loadSensor;
       this.StopStart = stopStart;
+      if (this.Sensor.Identifier.ToString().IndexOf("virtual") > 0) {
+        this.stepSpeed = 1;
+      }
     }
 
     private float targetValue;
@@ -411,6 +420,7 @@ namespace OpenHardwareMonitor.Hardware {
     // fanStatus: 0 - Stopped, 1 - Running, -1 - Indeterminate
     private int fanStatus;
     private bool started = false;
+    private int stepSpeed = 0;
 
     internal float Value { get; private set; }
     internal void Start() {
@@ -428,6 +438,10 @@ namespace OpenHardwareMonitor.Hardware {
 
     public void SetLoadSensor(ISensor sensor) {
       this.LoadSensor = sensor;
+    }
+
+    public void setStepSpeed(int speed) {
+      this.stepSpeed = speed;
     }
 
     // Set control to 100% for sec (Value range: 0 - 60)
@@ -457,18 +471,27 @@ namespace OpenHardwareMonitor.Hardware {
           return;
         }
       }
-      if (Sensor != null && Sensor.AverageValue.HasValue) {
-        float sensorValue = Sensor.AverageValue.Value;
+
+      float? sensorValue = null;
+      if (Sensor != null) {
+        if (stepSpeed > 0) {
+          sensorValue = Sensor.Value;
+        } else {
+          sensorValue = Sensor.AverageValue;
+        }
+      }
+
+      if (sensorValue.HasValue) {
         if (stableValue == sensorValue && stableCount < 10) {
           stableCount++;
         } else {
-          stableValue = sensorValue;
+          stableValue = sensorValue.Value;
           stableCount = 0;
         }
         // Hysteresis of +/-1C to prevent fan speed fluctuating.
         // A stable value of 10 consecutive samples within hystersis also forces an update.
         if (previousSensorValue < sensorValue - 1 || previousSensorValue > sensorValue + 1 || (previousSensorValue != sensorValue && stableCount >= 10)) {
-          previousSensorValue = sensorValue;
+          previousSensorValue = sensorValue.Value;
           if (StopStart.StartTemp != 0 && StopStart.StopTemp != 0 && StopStart.StartTemp >= StopStart.StopTemp) {
             if (fanStatus != 1 && sensorValue > StopStart.StartTemp) {
               fanStatus = 1;
@@ -481,7 +504,7 @@ namespace OpenHardwareMonitor.Hardware {
             fanStatus = -1;
           }
           // As of writing this, a Control is controlled with percentages. Round away decimals
-          targetValue = (fanStatus == 0) ? 0.0f : (float)Math.Round(Calculate(sensorValue));
+          targetValue = (fanStatus == 0) ? 0.0f : (float)Math.Round(Calculate(sensorValue.Value));
         }
 
         if (Value != targetValue || fanStateChanged) {
@@ -489,11 +512,11 @@ namespace OpenHardwareMonitor.Hardware {
             Value = targetValue;
           } else if (LoadSensor != null && Value - targetValue > 1 && LoadSensor.Value > 20) {
             Value -= 0.1f;
-          } else if (Value - targetValue > 50) {
+          } else if (Value - targetValue > 20 && this.stepSpeed == 0) {
             Value -= 5;
-          } else if (Value - targetValue > 10) {
+          } else if (Value - targetValue > 10 && this.stepSpeed == 0) {
             Value -= 2;
-          } else if (Value - targetValue > 1) {
+          } else if (Value - targetValue > 1 && this.stepSpeed == 0) {
             Value -= 0.5f;
           } else {
             Value = targetValue;
@@ -563,6 +586,9 @@ namespace OpenHardwareMonitor.Hardware {
       if (LoadSensor != null) {
         builder.Append(',');
         builder.Append(LoadSensor.Identifier.ToString());
+      } else if (stepSpeed > 0) {
+        builder.Append(',');
+        builder.Append(stepSpeed.ToString());
       }
 
       return builder.ToString();

@@ -42,32 +42,8 @@ namespace OpenHardwareMonitor.Hardware {
     
     private float sum;
     private int count;
-
-    [DllImport("PowrProf.dll", CharSet = CharSet.Unicode)]
-    static extern UInt32 PowerWriteDCValueIndex(IntPtr RootPowerKey,
-    [MarshalAs(UnmanagedType.LPStruct)] Guid SchemeGuid,
-    [MarshalAs(UnmanagedType.LPStruct)] Guid SubGroupOfPowerSettingsGuid,
-    [MarshalAs(UnmanagedType.LPStruct)] Guid PowerSettingGuid,
-    int AcValueIndex);
-
-    [DllImport("PowrProf.dll", CharSet = CharSet.Unicode)]
-    static extern UInt32 PowerWriteACValueIndex(IntPtr RootPowerKey,
-        [MarshalAs(UnmanagedType.LPStruct)] Guid SchemeGuid,
-        [MarshalAs(UnmanagedType.LPStruct)] Guid SubGroupOfPowerSettingsGuid,
-        [MarshalAs(UnmanagedType.LPStruct)] Guid PowerSettingGuid,
-        int AcValueIndex);
-
-    [DllImport("PowrProf.dll", CharSet = CharSet.Unicode)]
-    static extern UInt32 PowerSetActiveScheme(IntPtr RootPowerKey,
-        [MarshalAs(UnmanagedType.LPStruct)] Guid SchemeGuid);
-
-    [DllImport("PowrProf.dll", CharSet = CharSet.Unicode)]
-    static extern UInt32 PowerGetActiveScheme(IntPtr UserPowerKey, out IntPtr ActivePolicyGuid);
-
-    static readonly Guid GUID_PROCESSOR_SETTINGS_SUBGROUP = new Guid("54533251-82be-4824-96c1-47b60b740d00");
-    static readonly Guid GUID_BOOSTMODE= new Guid("be337238-0d82-4146-a960-4f3749d470c7");
-    static readonly Guid GUID_PROCESSOR_THROTTLE_MAXIMUM = new Guid("BC5038F7-23E0-4960-96DA-33ABAF5935EC");
-    static readonly Guid GUID_PROCESSOR_THROTTLE_MINIMUM = new Guid("893DEE8E-2BEF-41E0-89C6-B55D0929964C");
+    private BoostControl boost;
+    private bool doBoost = false;
 
     public Sensor(string name, int index, SensorType sensorType,
       Hardware hardware, ISettings settings) : 
@@ -91,10 +67,14 @@ namespace OpenHardwareMonitor.Hardware {
       this.perfLevel = 100;
       int auxParams = 0;
       if (name == "CPU VCore") {
-        SetProcessorBoostMode(2);
+        boost = new BoostControl(true);
+        boost.EnableBoost(true);
         auxParams = 3;
+        doBoost = true;
       } else if (name == "CPU Package" && sensorType == SensorType.Power) {
         auxParams = 1;
+        boost = new BoostControl(false);
+        boost.EnableBoost(false);
       }
 
       Parameter[] parameters = new Parameter[parameterDescriptions == null ?
@@ -122,7 +102,7 @@ namespace OpenHardwareMonitor.Hardware {
       if (name == "CPU VCore") {
         parameters[pcount++] = new Parameter(new ParameterDescription("Tau", "Continous boosting time", 0.0f), this, settings);
         parameters[pcount++] = new Parameter(new ParameterDescription("VBoost", "Boost voltage threshold", 1.3f), this, settings);
-        parameters[pcount++] = new Parameter(new ParameterDescription("VRest", "Rest voltage threshold", 1.06f), this, settings);
+        parameters[pcount++] = new Parameter(new ParameterDescription("VRest", "Rest voltage threshold", 1.03f), this, settings);
       } else if (name == "CPU Package" && sensorType == SensorType.Power) {
         parameters[pcount++] = new Parameter(new ParameterDescription("PPT", "CPU Package Power target", 0.0f), this, settings);
       }
@@ -153,6 +133,9 @@ namespace OpenHardwareMonitor.Hardware {
       string name = new Identifier(Identifier, "values").ToString();
       string s = settings.GetValue(name, null);
 
+      if (s == null) {
+        return;
+      }
       try {
         byte[] array = Convert.FromBase64String(s);
         s = null;
@@ -284,7 +267,7 @@ namespace OpenHardwareMonitor.Hardware {
         if (throttle) {
           throttle = false;
           // Enable Boost
-          SetProcessorBoostMode(2);
+          boost.EnableBoost(true);
         }
         return;
       }
@@ -313,11 +296,11 @@ namespace OpenHardwareMonitor.Hardware {
       if (!throttle && vMin > vBoost) {
         throttle = true;
         // Disable Boost
-        SetProcessorBoostMode(0);
+        boost.EnableBoost(false);
       } else if (throttle && vAvg < readParameter("VRest") && vMax <= vBoost) {
         throttle = false;
         // Enable Boost
-        SetProcessorBoostMode(2);
+        boost.EnableBoost(true);
       }
     }
 
@@ -326,7 +309,7 @@ namespace OpenHardwareMonitor.Hardware {
       if (ppt == 0) {
         if (perfLevel < 100) {
           perfLevel = 100;
-          SetProcessorPerformanceLevel(99, 100);
+          boost.SetPerformanceLevel(99, 100);
         }
         return;
       }
@@ -334,57 +317,23 @@ namespace OpenHardwareMonitor.Hardware {
       if (power > ppt * 1.05) {
         if (perfLevel > 5) {
           perfLevel -= 5;
-          SetProcessorPerformanceLevel(perfLevel, perfLevel);
+          boost.SetPerformanceLevel(perfLevel, perfLevel);
         }
       } else if (power < ppt * 0.95) {
         if (perfLevel < 100) {
           perfLevel += 5;
-          SetProcessorPerformanceLevel(perfLevel == 100 ? 99 : perfLevel, perfLevel);
+          boost.SetPerformanceLevel(perfLevel == 100 ? 99 : perfLevel, perfLevel);
         }
       }
     }
 
-    private void SetProcessorBoostMode(int mode) {
-      IntPtr pActiveSchemeGuid;
-      var hr = PowerGetActiveScheme(IntPtr.Zero, out pActiveSchemeGuid);
-      Guid activeSchemeGuid = (Guid)Marshal.PtrToStructure(pActiveSchemeGuid, typeof(Guid));
-
-      hr = PowerWriteACValueIndex(
-           IntPtr.Zero,
-           activeSchemeGuid,
-           GUID_PROCESSOR_SETTINGS_SUBGROUP,
-           GUID_BOOSTMODE,
-           mode);
-
-      PowerSetActiveScheme(IntPtr.Zero, activeSchemeGuid); //This is necessary to apply the current scheme.
-    }
-
-    private void SetProcessorPerformanceLevel(int min, int max) {
-      IntPtr pActiveSchemeGuid;
-      var hr = PowerGetActiveScheme(IntPtr.Zero, out pActiveSchemeGuid);
-      Guid activeSchemeGuid = (Guid)Marshal.PtrToStructure(pActiveSchemeGuid, typeof(Guid));
-
-      hr = PowerWriteACValueIndex(
-           IntPtr.Zero,
-           activeSchemeGuid,
-           GUID_PROCESSOR_SETTINGS_SUBGROUP,
-           GUID_PROCESSOR_THROTTLE_MAXIMUM,
-           max);
-
-      hr = PowerWriteACValueIndex(
-           IntPtr.Zero,
-           activeSchemeGuid,
-           GUID_PROCESSOR_SETTINGS_SUBGROUP,
-           GUID_PROCESSOR_THROTTLE_MINIMUM,
-           min);
-
-      PowerSetActiveScheme(IntPtr.Zero, activeSchemeGuid); //This is necessary to apply the current scheme.
-    }
-
-
     public float? Value {
-      get { 
-        return throttle ? -currentValue: currentValue;
+      get {
+        if (doBoost && boost != null) {
+          return boost.CanBoost() ? currentValue : -currentValue;
+        } else {
+          return currentValue;
+        }
       }
       set {
         if (this.Name == "CPU VCore") {

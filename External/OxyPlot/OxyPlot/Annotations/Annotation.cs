@@ -145,7 +145,7 @@ namespace OxyPlot.Annotations
         /// </returns>
         public ScreenPoint Transform(IDataPoint p)
         {
-            return this.XAxis.Transform(p.X, p.Y, this.YAxis);
+            return (this.XAxis != null) ? this.XAxis.Transform(p.X, p.Y, this.YAxis) : new ScreenPoint(0, 0);
         }
 
         /// <summary>
@@ -170,6 +170,10 @@ namespace OxyPlot.Annotations
         /// </returns>
         protected OxyRect GetClippingRect()
         {
+            if (this.XAxis == null || this.YAxis == null)
+            {
+                return new OxyRect(0, 0, 0, 0);
+            }
             double minX = Math.Min(this.XAxis.ScreenMin.X, this.XAxis.ScreenMax.X);
             double minY = Math.Min(this.YAxis.ScreenMin.Y, this.YAxis.ScreenMax.Y);
             double maxX = Math.Max(this.XAxis.ScreenMin.X, this.XAxis.ScreenMax.X);

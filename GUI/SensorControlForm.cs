@@ -130,8 +130,9 @@ namespace OpenHardwareMonitor.GUI
             textBox3.Text = Convert.ToString(stopStart != null ? stopStart.StopTemp : 0);
             textBox4.Text = Convert.ToString(stopStart != null ? stopStart.StartTemp : 0);
 
-      mPlot.MouseDown += MPlot_MouseDown;
-        }
+            mPlot.MouseDown += MPlot_MouseDown;
+            mPlot.Refresh();
+    }
         private void UpdateAxes()
         {
             mModel.Axes.Clear();
