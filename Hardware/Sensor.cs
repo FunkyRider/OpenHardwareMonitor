@@ -69,12 +69,12 @@ namespace OpenHardwareMonitor.Hardware {
       if (name == "CPU VCore") {
         boost = new BoostControl(true);
         boost.EnableBoost(true);
-        auxParams = 3;
+        auxParams = 5;
         doBoost = true;
       } else if (name == "CPU Package" && sensorType == SensorType.Power) {
         auxParams = 1;
         boost = new BoostControl(false);
-        boost.EnableBoost(false);
+        boost.EnableBoost(true);
       }
 
       Parameter[] parameters = new Parameter[parameterDescriptions == null ?
@@ -103,6 +103,8 @@ namespace OpenHardwareMonitor.Hardware {
         parameters[pcount++] = new Parameter(new ParameterDescription("Tau", "Continous boosting time", 0.0f), this, settings);
         parameters[pcount++] = new Parameter(new ParameterDescription("VBoost", "Boost voltage threshold", 1.3f), this, settings);
         parameters[pcount++] = new Parameter(new ParameterDescription("VRest", "Rest voltage threshold", 1.03f), this, settings);
+        parameters[pcount++] = new Parameter(new ParameterDescription("BoostMode", "CPU Boost Mode. 0: Disable, 1: Enable, 2: Aggressive", 1), this, settings);
+        parameters[pcount++] = new Parameter(new ParameterDescription("AutoCCX", "Assign process to CCX based on load. 0: Disable, 1: Prefer CCX1, 2: Prefer CCX2", 0), this, settings);
       } else if (name == "CPU Package" && sensorType == SensorType.Power) {
         parameters[pcount++] = new Parameter(new ParameterDescription("PPT", "CPU Package Power target", 0.0f), this, settings);
       }
@@ -263,6 +265,7 @@ namespace OpenHardwareMonitor.Hardware {
     // When VCore > 1.28v for longer than 30 seconds, disable boost until avg VCore < 1.08v for 10 seconds
     private void VCoreProtect(float volt) {
       var tau = (int)readParameter("Tau");
+      var boostMode = (int)readParameter("BoostMode");
       if (tau == 0) {
         if (throttle) {
           throttle = false;
@@ -271,12 +274,13 @@ namespace OpenHardwareMonitor.Hardware {
         }
         return;
       }
+      float vRest = readParameter("VRest");
       // Accumulate voltage reading
       if (voltValues == null || voltValues.Length != tau) {
         voltValues = new float[tau];
         voltCursor = 0;
       }
-      voltValues[voltCursor] = (volt > 1.0f ? volt : 1.0f);
+      voltValues[voltCursor] = (volt > vRest ? volt : vRest);
 
       // Find min, max
       float? vMin = voltValues[0], vMax = voltValues[0], vAvg = voltValues[0];
@@ -297,9 +301,10 @@ namespace OpenHardwareMonitor.Hardware {
         throttle = true;
         // Disable Boost
         boost.EnableBoost(false);
-      } else if (throttle && vAvg < readParameter("VRest") && vMax <= vBoost) {
+      } else if (throttle && vAvg <= vRest && vMax <= vBoost) {
         throttle = false;
         // Enable Boost
+        boost.SetBoostMode(boostMode);
         boost.EnableBoost(true);
       }
     }
@@ -316,12 +321,17 @@ namespace OpenHardwareMonitor.Hardware {
 
       if (power > ppt * 1.05) {
         if (perfLevel > 5) {
-          perfLevel -= 5;
+          int step = (power > ppt * 1.1) ? 5 : 1;
+          perfLevel -= step;
           boost.SetPerformanceLevel(perfLevel, perfLevel);
         }
       } else if (power < ppt * 0.95) {
         if (perfLevel < 100) {
-          perfLevel += 5;
+          int step = (power < ppt * 0.9) ? 5 : 1;
+          perfLevel += step;
+          if (perfLevel > 100) {
+            perfLevel = 100;
+          }
           boost.SetPerformanceLevel(perfLevel == 100 ? 99 : perfLevel, perfLevel);
         }
       }
@@ -338,6 +348,10 @@ namespace OpenHardwareMonitor.Hardware {
       set {
         if (this.Name == "CPU VCore") {
           this.VCoreProtect(value.HasValue ? value.Value : 0);
+          float ccxMode = readParameter("AutoCCX");
+          if (ccxMode > 0) {
+            boost.UpdateProcessAffinity((int)ccxMode);
+          }
         } else if (this.Name == "CPU Package" && this.sensorType == SensorType.Power) {
           this.PPT(value.HasValue ? value.Value : 0);
         }

@@ -282,6 +282,8 @@ namespace OpenHardwareMonitor.Hardware.Mainboard {
         case Chip.NCT6796DR:
         case Chip.NCT6797D:
         case Chip.NCT6798D:
+        case Chip.NCT6799D:
+        case Chip.NCT6683D:
           GetNuvotonConfigurationD(superIO, manufacturer, model, v, t, f, c);
           break;
         default:
@@ -1307,7 +1309,7 @@ namespace OpenHardwareMonitor.Hardware.Mainboard {
           for (int i = 0; i < superIO.Fans.Length; i++)
             f.Add(new Fan("Fan #" + (i + 1), i));
           for (int i = 0; i < superIO.Controls.Length; i++)
-            c.Add(new Ctrl("Fan Control #" + (i + 1), i));
+            c.Add(new Ctrl("Fan #" + (i + 1), i));
           break;
       }
     }

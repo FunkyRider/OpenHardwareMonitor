@@ -295,7 +295,7 @@ namespace OpenHardwareMonitor.Hardware {
 
     private void HandleSoftwareCurveValueChange(SoftwareCurve softwareCurve) {
       this.softwareCurveValue = softwareCurve.Value;
-      Debug.WriteLine("setting value from software curve: " + softwareCurve.Sensor.Name + " -> " + softwareCurve.Value);
+      //Debug.WriteLine("setting value from software curve: " + softwareCurve.Sensor.Name + " -> " + softwareCurve.Value);
       this.SoftwareControlValueChanged(this);
     }
 

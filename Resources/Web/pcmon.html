@@ -293,8 +293,8 @@
 		function display(data) {
 			if (!Array.isArray(data.Children)) {
 				return;
-      }
-			var dcpu = findCPU(data), dgpu = findGPU(data), mb = data.Children[0].Children ? data.Children[0].Children[0].Children[0] : { Children: [] };
+			}
+			var dcpu = findCPU(data), dgpu = findGPU(data), mb = data.Children[0].Children ? (data.Children[0].Children[0].Children ? data.Children[0].Children[0].Children[0] : { Children: [] } ) : { Children: [] };
 			var maxClock = 0;
 			var clocks = findItem(dcpu, "Clocks");
 			clocks.Children.forEach(function (clock) {
@@ -478,10 +478,11 @@
 			//if (throttle) {
 			//	volt = "<span style='color:#fc0'>" + volt + "</span>";
 			//}
+			dbg += "<br>";
 			if (!isNaN(attr.cpu.voltage))
-				dbg += "<br>&nbsp;" + volt + "&nbsp;&nbsp;";
+				dbg += "&nbsp;" + volt + "&nbsp;";
 			if (!isNaN(attr.cpu.power))
-				dbg += attr.cpu.power + "<span class='unit'>W</span>";
+				dbg += "&nbsp;" + attr.cpu.power + "<span class='unit'>W</span>";
 			dbg += "</div>";
 
 			dbg += "<div float='right' class='gpu'>";
@@ -496,10 +497,11 @@
 			}
 			dbg += "<br><span class='temperature'>" + attr.gpu.hotspot.toFixed(1) + "</span><span class='tsign'>&deg;C</span>";
 
+			dbg += "<br>";
 			if (!isNaN(attr.gpu.voltage))
-				dbg += "<br>&nbsp;" + attr.gpu.voltage.toFixed(3) + "<span class='unit'>V</span>&nbsp;&nbsp;";
+				dbg += "&nbsp;" + attr.gpu.voltage.toFixed(3) + "<span class='unit'>V</span>&nbsp;";
 			if (!isNaN(attr.gpu.power))
-				dbg += attr.gpu.power + "<span class='unit'>W</span>";
+				dbg += "&nbsp;" + attr.gpu.power + "<span class='unit'>W</span>";
 			dbg += "</div>";
 
 			dbg += "<div class='fans'><table><tr>";

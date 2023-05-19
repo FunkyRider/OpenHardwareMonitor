@@ -21,6 +21,7 @@ namespace OpenHardwareMonitor.Hardware {
   public class Computer : IComputer {
 
     private readonly List<IGroup> groups = new List<IGroup>();
+    private readonly object _lock = new object();
     private readonly ISettings settings;
 
     private SMBIOS smbios;
@@ -44,21 +45,25 @@ namespace OpenHardwareMonitor.Hardware {
     }
 
     private void Add(IGroup group) {
-      if (groups.Contains(group))
-        return;
+      lock (_lock) {
+        if (groups.Contains(group))
+          return;
 
-      groups.Add(group);
+        groups.Add(group);
+      }
 
       if (HardwareAdded != null)
-        foreach (IHardware hardware in group.Hardware)
-          HardwareAdded(hardware);
+          foreach (IHardware hardware in group.Hardware)
+            HardwareAdded(hardware);
     }
 
     private void Remove(IGroup group) {
-      if (!groups.Contains(group))
-        return;
+      lock (_lock) {
+        if (!groups.Contains(group))
+          return;
 
-      groups.Remove(group);
+        groups.Remove(group);
+      }
 
       if (HardwareRemoved != null)
         foreach (IHardware hardware in group.Hardware)
@@ -455,9 +460,11 @@ namespace OpenHardwareMonitor.Hardware {
     }
 
     public void Traverse(IVisitor visitor) {
-      foreach (IGroup group in groups)
-        foreach (IHardware hardware in group.Hardware) 
-          hardware.Accept(visitor);
+      lock (_lock) {
+        foreach (IGroup group in groups.ToArray())
+          foreach (IHardware hardware in group.Hardware)
+            hardware.Accept(visitor);
+      }
     }
 
     private class Settings : ISettings {
